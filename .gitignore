@@ -1,0 +1,7 @@
+venv/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+# Données brutes (Kaggle) : à télécharger séparément dans data/raw/
+data/raw/*.csv

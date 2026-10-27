@@ -1,0 +1,7 @@
+Scénario,Accuracy,F1 (1),F1 (0),F1 macro
+Toutes les variables,1.0,1.0,1.0,1.0
+Sans ComputerSkills,1.0,1.0,1.0,1.0
+Sans ComputerSkills ni technologies,0.5743942281513749,0.671775759802635,0.3948514468208652,0.5333136033117502
+Sans Employment,1.0,1.0,1.0,1.0
+Sans PreviousSalary,1.0,1.0,1.0,1.0
+"Sans variables sensibles ('Age', 'Gender', 'MentalHealth', 'Accessibility')",1.0,1.0,1.0,1.0
