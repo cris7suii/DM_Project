@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulateur ML — Employabilité</title>
+<link rel="stylesheet" href="css/style.css"></head><body>
+<header><h1>🧪 Simulateur pédagogique — Classification de l'employabilité</h1>
+<small>Règle du projet : Employed = 1 ⇔ le candidat maîtrise au moins 3 des 10 technologies « clés »</small></header>
+<nav id="nav"></nav>
+<div style="padding:0 18px"><span style="color:var(--mu)">Données :</span>
+<button class="btn on" id="d1">Règle exacte (toutes variables)</button>
+<button class="btn" id="d2">Profil seul (bruit ≈ 57 %)</button>
+<button class="btn" id="d3">🎲 Régénérer</button></div>
+<main>
+<div class="card"><h2 id="ct">Plan 2D</h2><canvas id="cv" width="560" height="560"></canvas>
+<div class="row"><span>X = technologies clés (0–10)</span><span>Y = années d'expérience (0–10)</span>
+<span><span class="B">●</span> Employé &nbsp;<span class="R">■</span> Non employé &nbsp;<span style="color:var(--o)">★</span> candidat testé</span></div></div>
+<div class="card" id="panel"></div>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/knn.js"></script>
+<script src="js/tree.js"></script>
+<script src="js/svm.js"></script>
+<script src="js/bayes.js"></script>
+<script src="js/main.js"></script>
+</body></html>
