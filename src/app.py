@@ -10,10 +10,12 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))          # nécessaire pour désérialiser split_techs / _log1p
 import features  # noqa: E402,F401
+from simulation import build_html  # noqa: E402
 
 st.set_page_config(page_title="Employabilité des candidats", page_icon="💼", layout="wide")
 
@@ -37,7 +39,7 @@ except FileNotFoundError:
     st.error("Modèle introuvable : exécutez d'abord les notebooks 01, 02 et 03 (dossier `notebooks/`).")
     st.stop()
 
-tabs = st.tabs(["🏠 Accueil", "🔮 Prédiction", "📊 Performance", "🔎 Ablations", "⚖️ Équité", "ℹ️ À propos"])
+tabs = st.tabs(["🏠 Accueil", "🔮 Prédiction", "📊 Performance", "🔎 Ablations", "⚖️ Équité", "🧪 Simulation", "ℹ️ À propos"])
 
 # ------------------------------------------------------------------ Accueil
 with tabs[0]:
@@ -135,8 +137,14 @@ with tabs[4]:
         st.dataframe(fair.round(3), width="stretch", hide_index=True)
         st.caption("`taux prédit` = part de candidats prédits « employés » ; `TPR`/`FPR` = taux de vrais/faux positifs par groupe.")
 
-# ------------------------------------------------------------------ À propos
+# ------------------------------------------------------------------ Simulation
 with tabs[5]:
+    st.header("🧪 Simulation interactive des algorithmes")
+    st.caption("KNN, arbre de décision, SVM linéaire et Naive Bayes sur la règle de la cible : Employed = 1 ⇔ au moins 3 technologies clés.")
+    components.html(build_html(), height=1000, scrolling=True)
+
+# ------------------------------------------------------------------ À propos
+with tabs[6]:
     st.header("À propos")
     st.write("**Stack** : Python · pandas · NumPy · scikit-learn · SciPy · GridSearchCV · joblib · Streamlit. "
              "Aucune bibliothèque de Deep Learning.")
