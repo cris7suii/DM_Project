@@ -25,7 +25,10 @@ DM_Project/
 │   └── 03_classification_models.ipynb
 ├── src/
 │   ├── features.py      # préprocesseur partagé (ColumnTransformer)
+│   ├── simulation.py    # assemble le simulateur HTML pour Streamlit
 │   └── app.py           # application Streamlit
+├── simulation/          # simulateur interactif (HTML/CSS/JS modulaire)
+├── render.yaml          # déploiement Render
 ├── .streamlit/config.toml
 └── requirements.txt
 ```
@@ -58,6 +61,24 @@ DM_Project/
 | Linear SVC | 0.5744 | 0.5333 | 0.5929 |
 | Decision Tree | 0.5709 | 0.5250 | 0.5678 |
 | Zero-R (baseline) | 0.5362 | 0.3490 | N/A |
+
+## 🧪 Simulation interactive
+
+L'onglet **Simulation** de l'application (et `simulation/index.html`, ouvrable seul dans un navigateur) montre comment les algorithmes décident :
+
+| Onglet | Ce qu'on voit |
+|---|---|
+| 🎯 KNN | voisins, vote simple/pondéré, K réglable, ★ déplaçable |
+| 🌳 Arbre | construction pas à pas, Gini, gain, profondeur |
+| 📐 SVM linéaire | hyperplan, marge 2/‖w‖, paramètre C, entraînement animé |
+| 🧮 Naive Bayes | régions gaussiennes, P(c\|x) |
+
+Deux jeux de données : *règle exacte* (≈ 100 %) et *profil seul* (bruit ≈ 57 %).
+Le code est modulaire : `simulation/js/*.js` (un fichier par algorithme) ; `src/simulation.py` les assemble pour Streamlit.
+
+## ☁️ Déploiement (Render)
+
+`render.yaml` est fourni : créer un *Web Service* depuis le dépôt GitHub, Render lit la configuration.
 
 ## ⚙️ Installation et exécution
 
