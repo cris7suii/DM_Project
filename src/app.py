@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))          # nécessaire pour désérialiser split_techs / _log1p
 import features  # noqa: E402,F401
 from simulation import build_html  # noqa: E402
+from simulation_v2 import render_simulation  # noqa: E402
 
 st.set_page_config(page_title="Employabilité des candidats", page_icon="💼", layout="wide")
 
@@ -139,9 +140,7 @@ with tabs[4]:
 
 # ------------------------------------------------------------------ Simulation
 with tabs[5]:
-    st.header("🧪 Simulation interactive des algorithmes")
-    st.caption("KNN, arbre de décision, SVM linéaire et Naive Bayes sur la règle de la cible : Employed = 1 ⇔ au moins 3 technologies clés.")
-    components.html(build_html(), height=1000, scrolling=True)
+    render_simulation()
 
 # ------------------------------------------------------------------ À propos
 with tabs[6]:
