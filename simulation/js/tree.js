@@ -13,8 +13,8 @@ function predT(p){let b=[0,10,0,10];for(let i=0;i<ns;i++){const s=steps[i];if(p.
 function drawTree(){build();base();
  const regs=new Map();pts.forEach(p=>{const k=predT(p).join();(regs.get(k)||regs.set(k,{b:predT(p),s:[]}).get(k)).s.push(p)});
  let ok=0;regs.forEach(r=>{const m=r.s.filter(p=>p.c).length>=r.s.length/2?1:0;ok+=r.s.filter(p=>p.c==m).length;
-  g.fillStyle=m?'rgba(56,189,248,.13)':'rgba(244,63,94,.13)';g.fillRect(sx(r.b[0]),sy(r.b[3]),sx(r.b[1])-sx(r.b[0]),sy(r.b[2])-sy(r.b[3]))});
- g.strokeStyle='#fbbf24';g.lineWidth=2;steps.slice(0,ns).forEach(s=>{const[a,b,c,d]=s.b;g.beginPath();
+  g.fillStyle=m?'rgba(16,185,129,.13)':'rgba(249,115,22,.13)';g.fillRect(sx(r.b[0]),sy(r.b[3]),sx(r.b[1])-sx(r.b[0]),sy(r.b[2])-sy(r.b[3]))});
+ g.strokeStyle='#818cf8';g.lineWidth=2;steps.slice(0,ns).forEach(s=>{const[a,b,c,d]=s.b;g.beginPath();
   s.f=='x'?(g.moveTo(sx(s.t),sy(c)),g.lineTo(sx(s.t),sy(d))):(g.moveTo(sx(a),sy(s.t)),g.lineTo(sx(b),sy(s.t)));g.stroke()});g.lineWidth=1;dots();
  const s=steps[ns-1];
  $('#panel').innerHTML=`<h2>Construction pas à pas (critère de Gini)</h2>
