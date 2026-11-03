@@ -2,7 +2,7 @@
 let K=5,wt=0;
 function knn(){const d=pts.map(p=>({p,d:Math.hypot(p.x-Q.x,p.y-Q.y)})).sort((a,b)=>a.d-b.d).slice(0,K);
  let v=[0,0];d.forEach(o=>v[o.p.c]+=wt?1/(o.d+1e-6):1);return{d,v}}
-function drawKNN(){base();const{d,v}=knn();g.strokeStyle='#fbbf24';g.setLineDash([4,4]);
+function drawKNN(){base();const{d,v}=knn();g.strokeStyle='#818cf8';g.setLineDash([4,4]);
  d.forEach(o=>{g.beginPath();g.moveTo(sx(Q.x),sy(Q.y));g.lineTo(sx(o.p.x),sy(o.p.y));g.stroke()});g.setLineDash([]);
  g.beginPath();g.arc(sx(Q.x),sy(Q.y),d[d.length-1].d/10*(W-2*P),0,7);g.stroke();dots();star();
  const t=v[0]+v[1],pe=v[1]/t*100;
