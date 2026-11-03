@@ -4,7 +4,7 @@ function drawSVM(){base();const n=Math.hypot(...w)||1e-6,M=2/n;
  const line=(o,st,dash)=>{g.strokeStyle=st;g.setLineDash(dash?[5,4]:[]);g.beginPath();let a=[],b=[];
   for(const x of[0,10]){a.push([x,(o-bb-w[0]*x)/(w[1]||1e-6)])}
   if(Math.abs(w[1])<1e-3){const x=(o-bb)/w[0];g.moveTo(sx(x),sy(0));g.lineTo(sx(x),sy(10))}else{g.moveTo(sx(0),sy(a[0][1]));g.lineTo(sx(10),sy(a[1][1]))}g.stroke();g.setLineDash([])};
- line(0,'#fbbf24');line(1,'#38bdf8',1);line(-1,'#f43f5e',1);dots();
+ line(0,'#818cf8');line(1,'#10b981',1);line(-1,'#f97316',1);dots();
  const f=p=>w[0]*p.x+w[1]*p.y+bb;let ok=pts.filter(p=>(f(p)>0?1:0)==p.c).length,hinge=pts.reduce((s,p)=>s+Math.max(0,1-(p.c?1:-1)*f(p)),0);
  $('#panel').innerHTML=`<h2>Linear SVC — hyperplan wᵀx + b = 0 (le champion du projet)</h2>
  <div class="row">w₁ <input type=range min=-3 max=3 step=.05 value=${w[0]} oninput="w[0]=+this.value;drawSVM()"><b>${w[0].toFixed(2)}</b></div>
