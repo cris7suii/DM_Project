@@ -62,19 +62,28 @@ DM_Project/
 | Decision Tree | 0.5709 | 0.5250 | 0.5678 |
 | Zero-R (baseline) | 0.5362 | 0.3490 | N/A |
 
-## 🧪 Simulation interactive
+## 🧪 Simulation interactive didactique
 
-L'onglet **Simulation** de l'application (et `simulation/index.html`, ouvrable seul dans un navigateur) montre comment les algorithmes décident :
+L'onglet **🧪 Simulation** de l'application Streamlit (propulsé par `src/simulation_v2.py`) et le bac à sable 2D autonome (`simulation/index.html`) permettent de décomposer pas-à-pas le fonctionnement de chaque algorithme :
 
-| Onglet | Ce qu'on voit |
-|---|---|
-| 🎯 KNN | voisins, vote simple/pondéré, K réglable, ★ déplaçable |
-| 🌳 Arbre | construction pas à pas, Gini, gain, profondeur |
-| 📐 SVM linéaire | hyperplan, marge 2/‖w‖, paramètre C, entraînement animé |
-| 🧮 Naive Bayes | régions gaussiennes, P(c\|x) |
+| Algorithme | Démonstration interactive & Visualisation | Paramètres réglables |
+|---|---|---|
+| **📐 Linear SVC (Champion)** | Hyperplan $\mathbf{w}^T \mathbf{x} + b = 0$, marge géométrique $M = \frac{2}{\|\mathbf{w}\|}$, jauge de score, top 15 coefficients réels | Régularisation $C$ (Soft Margin) |
+| **🎯 KNN** | Sphéroïde des $K$ plus proches voisins dans l'espace normalisé, vote simple vs vote pondéré ($1/d, 1/d^2$), tableau détaillé des voisins | Voisins $K$, pondération |
+| **🌳 Arbre de décision (CART)** | Partitionnement orthogonal 2D, cheminement pas-à-pas (règles IF-THEN) pour le candidat, importance Gini des variables | Profondeur maximale (`max_depth`) |
+| **🧮 Naive Bayes Multinomial** | Calcul des probabilités a posteriori $P(c\|\mathbf{x})$, probabilités a priori, décomposition des contributions log-vraisemblance | Lissage de Laplace ($\alpha$) |
+| **🌲 Random Forest** | Vote ensembliste détaillé de chaque arbre, réduction de variance par Bagging | Nombre d'arbres, profondeur |
+| **⚖️ Zero-R (Baseline)** | Prédiction de la classe majoritaire (53,6 %), seuil d'utilité minimal pour tout modèle | — |
 
-Deux jeux de données : *règle exacte* (≈ 100 %) et *profil seul* (bruit ≈ 57 %).
-Le code est modulaire : `simulation/js/*.js` (un fichier par algorithme) ; `src/simulation.py` les assemble pour Streamlit.
+Deux modes d'évaluation sont comparables en direct :
+- **Toutes les variables (avec technologies)** : performances à ≈ 85–100 % (découverte de la règle déterministe).
+- **Profil seul (sans technologies)** : chute à ≈ 54–58 % (niveau de la baseline Zero-R).
+
+### Tests unitaires automatisés
+
+```bash
+python tests/test_simulation.py
+```
 
 ## ☁️ Déploiement (Render)
 
