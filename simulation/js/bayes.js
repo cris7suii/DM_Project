@@ -7,7 +7,7 @@ function nbPost(M,x,y){const t=M[0].n+M[1].n,l=M.map(c=>Math.log((c.n+1e-9)/t)+l
  m=Math.max(...l),e=l.map(v=>Math.exp(v-m));return{p1:e[1]/(e[0]+e[1]),l}}
 function drawNB(){base();const M=nbFit(),N=28,s=(W-2*P)/N;
  for(let i=0;i<N;i++)for(let j=0;j<N;j++){const p=nbPost(M,(i+.5)/N*10,(j+.5)/N*10).p1;
-  g.fillStyle=`rgba(${p>.5?'56,189,248':'244,63,94'},${Math.abs(p-.5)*.5})`;g.fillRect(sx(i/N*10),sy((j+1)/N*10),s+1,s+1)}
+  g.fillStyle=`rgba(${p>.5?'16,185,129':'249,115,22'},${Math.abs(p-.5)*.5})`;g.fillRect(sx(i/N*10),sy((j+1)/N*10),s+1,s+1)}
  dots();star();const r=nbPost(M,Q.x,Q.y),t=M[0].n+M[1].n,pe=r.p1*100,f=v=>v.toFixed(2);
  $('#panel').innerHTML=`<h2>Naive Bayes gaussien — P(c|x) ∝ P(c)·P(X|c)·P(Y|c)</h2>
  <table><tr><th>Classe</th><th>P(c)</th><th>μ_X</th><th>σ²_X</th><th>μ_Y</th><th>σ²_Y</th></tr>
