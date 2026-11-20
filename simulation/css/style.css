@@ -366,3 +366,53 @@ tr.R td { color: var(--r); font-weight: 600; }
 }
 .legend .sym { font-size: 13px; line-height: 1; }
 .legend .cand { color: var(--o); font-weight: bold; }
+/* =========================================================
+   Étape 3 — conteneur unifié, panneaux, tableaux, marque
+   ========================================================= */
+
+/* 1) Conteneur unifié : en-tête, nav, toolbar et main partagent la même largeur */
+header, nav, .toolbar {
+  padding-left: max(var(--gutter), calc((100% - 1400px) / 2 + var(--gutter)));
+  padding-right: max(var(--gutter), calc((100% - 1400px) / 2 + var(--gutter)));
+}
+main {
+  max-width: none;
+  margin: 0;
+  padding-left: max(var(--gutter), calc((100% - 1400px) / 2 + var(--gutter)));
+  padding-right: max(var(--gutter), calc((100% - 1400px) / 2 + var(--gutter)));
+}
+
+/* 2) Marque : icône dans le carré (CSS pur, aucune modification HTML) */
+header::before {
+  content: "◆";
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* 3) Panneaux : titre plus lisible, séparation nette */
+.card h2 { font-size: 15px; }
+#panel > .row:first-of-type { margin-top: 0; }
+
+/* 4) Lignes de contrôle : libellé fixe + curseur + valeur alignée */
+.row b {
+  min-width: 3.2ch;
+  text-align: right;
+}
+
+/* 5) Boutons dans les panneaux : plein sur mobile */
+@media (max-width: 520px) {
+  #panel .btn { flex: 1 1 100%; justify-content: center; }
+}
+
+/* 6) Tableaux : lignes zébrées discrètes, en-tête sobre */
+#panel table { border: 1px solid var(--bd); border-radius: var(--radius-sm); overflow: hidden; }
+#panel th { background: rgba(148, 163, 184, .06); }
+#panel tr:nth-child(even) td { background: rgba(148, 163, 184, .03); }
+#panel tr:hover td { background: rgba(148, 163, 184, .08); }
+
+/* 7) Notes : variantes de lisibilité */
+.note b { color: var(--tx); }
+.note code { white-space: nowrap; }
