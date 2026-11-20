@@ -1,19 +1,50 @@
 <!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f172a">
 <title>Simulateur ML — Employabilité</title>
-<link rel="stylesheet" href="css/style.css"></head><body>
-<header><div><h1>🧪 Simulateur pédagogique — Classification de l'employabilité</h1>
-<small>Règle du projet : Employed = 1 ⇔ le candidat maîtrise au moins 3 des 10 technologies « clés »</small></div></header>
-<nav id="nav"></nav>
-<div class="toolbar"><span>Données</span>
-<button class="btn on" id="d1">Règle exacte (toutes variables)</button>
-<button class="btn" id="d2">Profil seul (bruit ≈ 57 %)</button>
-<button class="btn" id="d3">🎲 Régénérer</button></div>
-<main>
-<div class="card"><h2 id="ct">Plan 2D</h2><canvas id="cv" width="560" height="560"></canvas>
-<div class="row"><span>X = technologies clés (0–10)</span><span>Y = années d'expérience (0–10)</span>
-<span><span class="B">●</span> Employé &nbsp;<span class="R">■</span> Non employé &nbsp;<span style="color:var(--o);font-weight:bold">◆</span> candidat testé</span></div></div>
-<div class="card" id="panel"></div>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%236366f1'/%3E%3Ccircle cx='22' cy='24' r='7' fill='%2310b981'/%3E%3Crect x='34' y='34' width='14' height='14' fill='%23f97316'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Aller au contenu</a>
+
+<header>
+  <div class="brand">
+    <span class="eyebrow">EmployML · Simulateur pédagogique</span>
+    <h1><span aria-hidden="true">🧪</span> Simulateur pédagogique — Classification de l'employabilité</h1>
+    <small>Règle du projet : Employed = 1 ⇔ le candidat maîtrise au moins 3 des 10 technologies « clés »</small>
+  </div>
+</header>
+
+<nav id="nav" aria-label="Choix de l'algorithme"></nav>
+
+<div class="toolbar" role="group" aria-labelledby="tb-label">
+  <span id="tb-label">Données</span>
+  <button class="btn on" id="d1">Règle exacte (toutes variables)</button>
+  <button class="btn" id="d2">Profil seul (bruit ≈ 57 %)</button>
+  <button class="btn" id="d3">🎲 Régénérer</button>
+</div>
+
+<main id="main">
+  <div class="card">
+    <h2 id="ct">Plan 2D</h2>
+    <canvas id="cv" width="560" height="560" role="img"
+      aria-label="Plan 2D : technologies clés en abscisse, années d'expérience en ordonnée, candidats employés et non employés"></canvas>
+    <div class="row axes">
+      <span>X = technologies clés (0–10)</span>
+      <span>Y = années d'expérience (0–10)</span>
+    </div>
+    <ul class="legend" role="list" aria-label="Légende">
+      <li><span class="sym B" aria-hidden="true">●</span> Employé</li>
+      <li><span class="sym R" aria-hidden="true">■</span> Non employé</li>
+      <li><span class="sym cand" aria-hidden="true">◆</span> Candidat testé</li>
+    </ul>
+  </div>
+  <div class="card" id="panel"></div>
 </main>
 
 <script src="js/core.js"></script>
@@ -22,4 +53,5 @@
 <script src="js/svm.js"></script>
 <script src="js/bayes.js"></script>
 <script src="js/main.js"></script>
-</body></html>
+</body>
+</html>
