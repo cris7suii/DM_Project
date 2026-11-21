@@ -192,7 +192,38 @@ with tabs[1]:
 
             key_techs_present = [t for t in techs if t in KEY_TECHS]
             result_card(pred, score_text, proba, key_techs_found=key_techs_present)
-            
+
+            # Export Certifié du Rapport d'Audit Décisionnel (MLOps / XAI Compliance)
+            audit_report = {
+                "system": "EmployML Data Mining Governance Platform",
+                "model_champion": meta.get("champion", "Linear SVC"),
+                "candidate_profile": {
+                    "age": age, "gender": gender, "country": country,
+                    "education": edlevel, "branch": mainbranch,
+                    "years_coding": years_code, "years_pro": effective_years_pro,
+                    "previous_salary_usd": float(salary),
+                    "technologies": techs, "other_skills": int(others),
+                    "mental_health_declaration": mental, "accessibility": access
+                },
+                "audit_verdict": {
+                    "classification": pred,
+                    "label": "Employed (1)" if pred == 1 else "Not Employed (0)",
+                    "hyperplane_distance": round(float(model.decision_function(row)[0]), 4) if hasattr(model, "decision_function") else None,
+                    "confidence_score": round(proba, 4) if proba is not None else None,
+                    "key_techs_detected": key_techs_present,
+                    "key_techs_count": len(key_techs_present),
+                    "deterministic_rule_met": len(key_techs_present) >= 3
+                },
+                "compliance_notice": "Conforme aux recommandations d'audit éthique de l'IA (Module Data Mining 2026). Ne pas utiliser en production RH."
+            }
+
+            st.download_button(
+                label="📥 Exporter la Fiche d'Audit Certifiée du Candidat (JSON)",
+                data=json.dumps(audit_report, indent=2, ensure_ascii=False),
+                file_name=f"audit_candidat_{country.lower()}_{pred}.json",
+                mime="application/json"
+            )
+
             st.caption(
                 "ℹ️ **Note académique** : Cette prédiction reflète la reproduction d'une règle synthétique "
                 "sur les technologies déclarées et ne saurait constituer une évaluation humaine de compétence."
