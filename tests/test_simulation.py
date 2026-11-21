@@ -6,11 +6,16 @@ Valide :
 3. Le scénario complet (avec technologies) vs profil seul (sans technologies).
 4. La robustesse aux valeurs manquantes et aux cas limites.
 5. La conformité avec la règle déterministe (Employed = 1 ⟺ n_key >= 3).
+6. L'analyse de sensibilité contrefactuelle (What-If Flips).
+7. La cohérence des seuils de décision et de la matrice de confusion.
 """
+from __future__ import annotations
+
 import sys
 from pathlib import Path
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -104,6 +109,27 @@ def test_whatif_counterfactual_flip():
     assert pred_flip == 1, "Un candidat avec 3 clés doit basculer vers Employé (1)"
 
 
+def test_counterfactual_reverse_flip():
+    """Vérifie que le retrait d'une technologie clé fait basculer la décision de 1 vers 0."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    # Candidat avec 3 technologies clés -> classe 1
+    cand_3keys = pd.DataFrame([{
+        "Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 6, "YearsCodePro": 4, "Country": "France", "PreviousSalary": 55000.0,
+        "HaveWorkedWith": "Java;C#;SQLite;Git", "ComputerSkills": 4
+    }])
+    assert int(champ.predict(cand_3keys)[0]) == 1
+
+    # Retrait d'une clé (reste 2 clés : Java et C#) -> classe 0
+    cand_2keys = cand_3keys.copy()
+    cand_2keys["HaveWorkedWith"] = "Java;C#;Git"
+    cand_2keys["ComputerSkills"] = 3
+    assert int(champ.predict(cand_2keys)[0]) == 0
+
+
 def test_decision_threshold_matrix_consistency():
     """Vérifie la cohérence arithmétique de la matrice de confusion à différents seuils."""
     champ = simulation_v2._load_champion_pipeline()
@@ -123,6 +149,60 @@ def test_decision_threshold_matrix_consistency():
         assert (tp + fp + tn + fn) == 100, "La somme des quadrants doit égaler la taille de l'échantillon"
 
 
+def test_decision_threshold_extreme_boundaries():
+    """Vérifie le comportement de la matrice de confusion aux bornes extrêmes [0, 1]."""
+    champ = simulation_v2._load_champion_pipeline()
+    df_sample, _ = simulation_v2._get_working_sample(n=50, seed=42)
+    scores = champ.decision_function(df_sample.drop(columns=["Employed"]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+
+    # Seuil 0.0 -> tous prédits 1
+    y_pred_0 = (probas >= 0.0).astype(int)
+    assert np.all(y_pred_0 == 1)
+
+    # Seuil 1.01 -> aucun prédit 1
+    y_pred_1 = (probas >= 1.01).astype(int)
+    assert np.all(y_pred_1 == 0)
+
+
+def test_decision_threshold_monotonicity():
+    """Vérifie la décroissance monotone du taux de prédictions positives avec le seuil."""
+    champ = simulation_v2._load_champion_pipeline()
+    df_sample, _ = simulation_v2._get_working_sample(n=100, seed=42)
+    scores = champ.decision_function(df_sample.drop(columns=["Employed"]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+
+    thresholds = [0.1, 0.3, 0.5, 0.7, 0.9]
+    pos_counts = [int(np.sum(probas >= th)) for th in thresholds]
+
+    for i in range(len(pos_counts) - 1):
+        assert pos_counts[i] >= pos_counts[i + 1], "Le nombre de positifs doit décroître avec le seuil"
+
+
+def test_get_working_sample_reproducibility():
+    """Vérifie la reproductibilité du tirage de l'échantillon synthétique par seed."""
+    df1, _ = simulation_v2._get_working_sample(n=50, seed=123)
+    df2, _ = simulation_v2._get_working_sample(n=50, seed=123)
+    pd.testing.assert_frame_equal(df1, df2)
+
+    df3, _ = simulation_v2._get_working_sample(n=50, seed=456)
+    assert not df1.equals(df3), "Des graines différentes doivent produire des échantillons différents"
+
+
+@pytest.mark.parametrize("techs, expected_count", [
+    ("", 0),
+    ("Python;Git", 0),
+    ("Java", 1),
+    ("Java;C#;SQLite", 3),
+    ("Microsoft SQL Server;npm;jQuery;TypeScript;MongoDB;SQLite;Bash/Shell;Node.js;C#;Java", 10),
+    (None, 0),
+    (12345, 0),
+])
+def test_count_key_techs(techs, expected_count: int):
+    """Vérifie le comptage précis des 10 technologies clés de la règle."""
+    assert simulation_v2._count_key_techs(techs) == expected_count
+
+
 if __name__ == "__main__":
     test_artifacts_exist_and_load()
     print("test_artifacts_exist_and_load: OK")
@@ -134,6 +214,16 @@ if __name__ == "__main__":
     print("test_profile_only_ablation: OK")
     test_whatif_counterfactual_flip()
     print("test_whatif_counterfactual_flip: OK")
+    test_counterfactual_reverse_flip()
+    print("test_counterfactual_reverse_flip: OK")
     test_decision_threshold_matrix_consistency()
     print("test_decision_threshold_matrix_consistency: OK")
+    test_decision_threshold_extreme_boundaries()
+    print("test_decision_threshold_extreme_boundaries: OK")
+    test_decision_threshold_monotonicity()
+    print("test_decision_threshold_monotonicity: OK")
+    test_get_working_sample_reproducibility()
+    print("test_get_working_sample_reproducibility: OK")
+    test_count_key_techs("Java;C#;SQLite", 3)
+    print("test_count_key_techs: OK")
     print("Tous les tests unitaires ont réussi avec succès !")
