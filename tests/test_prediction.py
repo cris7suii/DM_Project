@@ -175,6 +175,37 @@ def test_many_non_key_technologies(loaded_artifacts, sample_candidate_dict: dict
 # Tests du module CLI d'inférence (src/cli.py)
 # ==============================================================================
 
+def test_cli_load_artifacts():
+    """Vérifie que cli.load_artifacts charge le modèle champion et les métadonnées."""
+    from cli import load_artifacts
+    model, meta = load_artifacts()
+    assert hasattr(model, "predict")
+    assert meta["champion"] == "Linear SVC"
+
+
+def test_cli_main_example_flag(capsys, monkeypatch):
+    """Vérifie l'exécution du point d'entrée CLI avec le drapeau --example."""
+    from cli import main
+    monkeypatch.setattr(sys, "argv", ["cli.py", "--example"])
+    main()
+    captured = capsys.readouterr()
+    assert "EmployML" in captured.out
+    assert "prediction" in captured.out
+    assert "hyperplane_distance" in captured.out
+
+
+def test_cli_main_single_prediction_json(capsys, monkeypatch):
+    """Vérifie l'exécution du point d'entrée CLI avec sortie JSON."""
+    from cli import main
+    monkeypatch.setattr(sys, "argv", [
+        "cli.py", "--techs", "Java;C#;SQLite", "--json"
+    ])
+    main()
+    captured = capsys.readouterr()
+    assert '"prediction": 1' in captured.out
+    assert '"deterministic_rule_met": true' in captured.out
+
+
 def test_cli_predict_single_structure(loaded_artifacts, sample_candidate_dict: dict):
     """Vérifie la structure et la logique du dictionnaire retourné par cli.predict_single."""
     model, _ = loaded_artifacts

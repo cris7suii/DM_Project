@@ -166,11 +166,33 @@ streamlit run src/app.py
 
 ### 🧪 Tests Unitaires Automatisés
 
-Une suite de tests vérifie l'intégrité des modèles sérialisés, la règle déterministe et l'absence de régression :
+Le projet intègre une suite professionnelle et exhaustive de tests automatisés propulsée par **pytest** et **pytest-cov** pour certifier l'intégrité du pipeline Machine Learning, la conformité des prédictions, la détection des fuites de données et la stabilité de l'application.
 
+#### Installation des dépendances de test
+Les dépendances de test (`pytest>=8.0`, `pytest-cov>=5.0`) sont incluses dans `requirements.txt` :
 ```bash
+pip install -r requirements.txt
+```
+
+#### Exécution de la suite de tests
+```bash
+# Exécution verbeuse de tous les tests
+python -m pytest -v
+
+# Exécution avec rapport de couverture de code détaillé
+python -m pytest -v --cov=src --cov-report=term-missing
+
+# Rétrocompatibilité : exécution autonome du script historique
 python tests/test_simulation.py
 ```
+
+#### Organisation et couverture des modules de test
+* **`tests/test_artifacts.py`** : Validation de la présence physique, de la désérialisation, de la structure des métadonnées `meta.json` et de l'intégrité des tableaux de résultats CSV (`best_model.pkl`, `preprocessor.pkl`, `results.csv`, `fairness.csv`, etc.).
+* **`tests/test_preprocessing.py`** : Validation unitaire de `features.py` (`split_techs`, `_log1p`, `build_preprocessor`), gestion des valeurs manquantes (`SimpleImputer`), robustesse aux catégories inconnues (`OneHotEncoder`) et vérification de la non-mutation des DataFrames d'entrée.
+* **`tests/test_prediction.py`** : Validation des dimensions et types des prédictions, conformité mathématique de la marge Linear SVC, respect strict de la règle déterministe ($\ge 3$ technologies clés), invariance sociodémographique et évaluation des cas limites (0 années d'expérience, salaires extrêmes, profils sans technologies).
+* **`tests/test_candidate.py`** : Validation des contrôles de cohérence sur les profils candidats (`validate_candidate`), extraction des technologies clés et calcul des synthèses de règles.
+* **`tests/test_simulation.py`** : Tests du laboratoire didactique (`simulation_v2.py`), reproductibilité des tirages synthétiques (`seed`), inversion contrefactuelle (What-If Flips $0 \leftrightarrow 1$) et cohérence matricielle des seuils décisionnels.
+* **`tests/test_app_logic.py`** : Validation unitaire de l'assembleur HTML (`simulation.build_html`) et des composants de rendu du design system (`theme.py` : badges, cartes hero, KPIs, bannières éthiques, alertes) isolés du serveur Streamlit.
 
 ---
 

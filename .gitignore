@@ -10,6 +10,9 @@ __pycache__/
 *$py.class
 *.so
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Jupyter & IDEs
 .ipynb_checkpoints/

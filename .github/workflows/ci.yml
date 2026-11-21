@@ -28,8 +28,8 @@ jobs:
 
       - name: Verify Code Syntax
         run: |
-          python -m py_compile src/artifacts.py src/candidate.py src/features.py src/theme.py src/simulation_v2.py src/app.py tests/test_artifacts.py tests/test_candidate.py tests/test_simulation.py
+          python -m py_compile src/artifacts.py src/candidate.py src/cli.py src/features.py src/simulation.py src/simulation_v2.py src/theme.py src/app.py tests/conftest.py tests/test_artifacts.py tests/test_candidate.py tests/test_preprocessing.py tests/test_prediction.py tests/test_simulation.py tests/test_app_logic.py
 
       - name: Run Test Suite
         run: |
-          python -m pytest -q
+          python -m pytest -v --cov=src --cov-report=term-missing
