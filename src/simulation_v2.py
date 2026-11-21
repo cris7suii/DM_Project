@@ -1370,6 +1370,286 @@ def _render_global_evaluation(use_full: bool):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Nouveau Simulateur 1 : Analyse Contrefactuelle & What-If (XAI)
+# ──────────────────────────────────────────────────────────────────────────────
+def _render_whatif_simulator(meta: dict, champion_pipe):
+    """Simulateur d'Analyse Contrefactuelle (Explainable AI / Recourse).
+    Permet de perturber les variables d'un profil et d'observer en direct le comportement
+    du modèle champion, la distance à la frontière de décision, et le point de bascule.
+    """
+    st.markdown("### ⚡ Simulateur d'Analyse Contrefactuelle & Sensibilité What-If (XAI)")
+    st.caption(
+        "Ce module d'Explainable AI (XAI) permet de simuler des scénarios contrefactuels : "
+        "« Quelle modification minimale de compétences ou d'expérience est nécessaire pour faire basculer la décision ? »"
+    )
+
+    if champion_pipe is None:
+        st.warning("Modèle champion indisponible.")
+        return
+
+    preset = st.selectbox(
+        "Sélectionner un profil de référence :",
+        [
+            "Profil A : Développeur Junior (2 techs clés — Non Employé)",
+            "Profil B : Profil Transverse / Analyste (0 tech clé — Non Employé)",
+            "Profil C : Développeur Confirmé (3 techs clés — Employé)",
+            "Profil D : Ingénieur Senior (5 techs clés — Employé)"
+        ]
+    )
+
+    if "Junior" in preset:
+        base_age = "<35"
+        base_ed = "Undergraduate"
+        base_code = 4
+        base_pro = 2
+        base_sal = 45000.0
+        base_country = "France"
+        base_techs = ["Python", "Git", "Bash/Shell", "Node.js"]
+        base_others = 1
+    elif "Transverse" in preset:
+        base_age = ">35"
+        base_ed = "Master"
+        base_code = 12
+        base_pro = 8
+        base_sal = 75000.0
+        base_country = "Germany"
+        base_techs = ["Python", "R", "SQL", "Git"]
+        base_others = 2
+    elif "Confirmé" in preset:
+        base_age = "<35"
+        base_ed = "Master"
+        base_code = 7
+        base_pro = 5
+        base_sal = 68000.0
+        base_country = "United Kingdom"
+        base_techs = ["Python", "TypeScript", "Node.js", "MongoDB", "Git"]
+        base_others = 3
+    else:
+        base_age = ">35"
+        base_ed = "PhD"
+        base_code = 15
+        base_pro = 11
+        base_sal = 110000.0
+        base_country = "United States"
+        base_techs = ["Java", "C#", "TypeScript", "Node.js", "MongoDB", "Bash/Shell"]
+        base_others = 5
+
+    c_left, c_right = st.columns([1, 1], gap="large")
+
+    with c_left:
+        st.markdown("#### 🛠️ Ajustements Contrefactuels (What-If)")
+        all_techs = meta.get("technologies", KEY_TECHS + ["Python", "Git", "Docker", "Linux", "SQL"])
+
+        sim_techs = st.multiselect(
+            "Technologies maîtrisées (tester l'ajout/retrait de techs clés) :",
+            options=all_techs,
+            default=[t for t in base_techs if t in all_techs]
+        )
+        sim_others = st.slider("Compétences techniques annexes (ComputerSkills) :", 0, 20, base_others)
+
+        col_s1, col_s2 = st.columns(2)
+        sim_pro = col_s1.slider("Années d'expérience pro :", 0, 30, int(base_pro))
+        sim_sal = col_s2.slider("Salaire précédent (kUSD) :", 10, 250, int(base_sal / 1000), step=5) * 1000
+
+        col_s3, col_s4 = st.columns(2)
+        sim_age = col_s3.selectbox("Tranche d'âge :", ["<35", ">35"], index=0 if base_age == "<35" else 1)
+        sim_ed = col_s4.selectbox(
+            "Diplôme :",
+            ["Undergraduate", "Master", "PhD", "NoHigherEd", "Other"],
+            index=["Undergraduate", "Master", "PhD", "NoHigherEd", "Other"].index(base_ed) if base_ed in ["Undergraduate", "Master", "PhD", "NoHigherEd", "Other"] else 1
+        )
+
+    base_row = pd.DataFrame([{
+        "Age": base_age, "Accessibility": "No", "EdLevel": base_ed, "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": max(base_code, base_pro), "YearsCodePro": base_pro,
+        "Country": base_country, "PreviousSalary": float(base_sal),
+        "HaveWorkedWith": ";".join(base_techs), "ComputerSkills": len(base_techs) + base_others
+    }])
+
+    sim_row = pd.DataFrame([{
+        "Age": sim_age, "Accessibility": "No", "EdLevel": sim_ed, "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": max(15, sim_pro + 2), "YearsCodePro": sim_pro,
+        "Country": base_country, "PreviousSalary": float(sim_sal),
+        "HaveWorkedWith": ";".join(sim_techs), "ComputerSkills": len(sim_techs) + sim_others
+    }])
+
+    base_pred = int(champion_pipe.predict(base_row)[0])
+    sim_pred = int(champion_pipe.predict(sim_row)[0])
+
+    base_dist = float(champion_pipe.decision_function(base_row)[0])
+    sim_dist = float(champion_pipe.decision_function(sim_row)[0])
+
+    base_k = len([t for t in base_techs if t in KEY_TECHS])
+    sim_k = len([t for t in sim_techs if t in KEY_TECHS])
+
+    with c_right:
+        st.markdown("#### 🎯 Diagnostic Comparatif & Frontière")
+
+        if base_pred != sim_pred:
+            if sim_pred == 1:
+                st.success("🎉 **Bascule Contrefactuelle Positive (Flip 0 ➔ 1) !** Le profil devient éligible (Employé).")
+            else:
+                st.error("⚠️ **Bascule Contrefactuelle Négative (Flip 1 ➔ 0) !** Le profil perd son éligibilité.")
+        else:
+            st.info("ℹ️ **Aucune bascule de décision** : le modèle conserve sa classification initiale.")
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Décision Initiale", "Employé (1)" if base_pred == 1 else "Non Employé (0)")
+        m2.metric("Décision What-If", "Employé (1)" if sim_pred == 1 else "Non Employé (0)",
+                  delta=f"{sim_dist - base_dist:+.2f} distance")
+        m3.metric("Technologies Clés", f"{sim_k} / 10", delta=f"{sim_k - base_k:+d} clés")
+
+        fig, ax = plt.subplots(figsize=(6, 2.4), facecolor=CLR_BG)
+        ax.set_facecolor("#0b1329")
+
+        y_pos = [1, 0]
+        distances = [sim_dist, base_dist]
+        labels = ["Profil What-If", "Profil Initial"]
+        colors = [CLR_EMPLOYED if sim_pred == 1 else CLR_NOT_EMP,
+                  CLR_EMPLOYED if base_pred == 1 else CLR_NOT_EMP]
+
+        ax.barh(y_pos, distances, height=0.45, color=colors, alpha=0.85)
+        ax.axvline(0, color="#ffffff", lw=1.8, linestyle="--", label="Frontière wᵀx + b = 0")
+        ax.axvspan(0, max(6, max(distances) + 1), color=CLR_EMPLOYED, alpha=0.08, label="Zone Employé (1)")
+        ax.axvspan(min(-6, min(distances) - 1), 0, color=CLR_NOT_EMP, alpha=0.08, label="Zone Non Employé (0)")
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(labels, color="#f8fafc", fontsize=9, fontweight="bold")
+        ax.set_xlabel("Distance algébrique à l'hyperplan SVM (wᵀx + b)", color="#cbd5e1", fontsize=8)
+        ax.tick_params(colors="#94a3b8", labelsize=8)
+        ax.spines[:].set_color(CLR_BORDER)
+        ax.legend(loc="upper left", fontsize=7, facecolor=CLR_CARD, labelcolor="#cbd5e1")
+        fig.tight_layout(pad=0.3)
+        st.pyplot(fig)
+        plt.close(fig)
+
+        if sim_k < 3:
+            missing = 3 - sim_k
+            missing_candidates = [t for t in KEY_TECHS if t not in sim_techs][:missing]
+            st.warning(
+                f"💡 **Recommandation contrefactuelle minimale** : pour franchir la frontière vers la classe « Employé », "
+                f"le candidat doit acquérir au minimum **{missing} technologie(s) clé(s)** supplémentaire(s) "
+                f"(ex. : `{', '.join(missing_candidates)}`). Les variations de salaire ou d'années d'expérience ont un impact marginal."
+            )
+        else:
+            st.success(
+                f"✅ **Stabilité du profil** : Avec {sim_k} technologies clés (≥ 3), la classification « Employé » est "
+                f"extrêmement robuste et insensible aux variations des autres variables."
+            )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Nouveau Simulateur 2 : Seuil Décisionnel & Matrice de Coûts Économiques
+# ──────────────────────────────────────────────────────────────────────────────
+def _render_threshold_matrix_tuner(champion_pipe):
+    """Simulateur dynamique de seuil décisionnel, matrice de confusion et coût d'erreur."""
+    st.markdown("### 🎚️ Simulateur de Seuil Décisionnel & Matrice de Coûts Économiques")
+    st.caption(
+        "Dans un modèle de classification, le seuil standard de probabilité est souvent fixé à 0.50 (ou 0 sur la marge). "
+        "Ce simulateur permet d'ajuster dynamiquement ce seuil pour observer le compromis entre Faux Positifs, Faux Négatifs "
+        "et coût financier global."
+    )
+
+    sample_df, _ = _get_working_sample(n=600, seed=42)
+    y_true = sample_df[TARGET].values
+
+    if champion_pipe is None:
+        st.warning("Modèle champion indisponible.")
+        return
+
+    scores = champion_pipe.decision_function(sample_df.drop(columns=[TARGET]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+
+    c_ctrl, c_res = st.columns([1, 1], gap="large")
+
+    with c_ctrl:
+        st.markdown("#### ⚙️ Réglage du Seuil & Coûts Métier")
+        threshold = st.slider("Seuil de décision τ (Probabilité estimée) :", 0.05, 0.95, 0.50, step=0.01)
+
+        st.markdown("##### 💶 Matrice des Coûts Unitaires d'Erreur")
+        col_c1, col_c2 = st.columns(2)
+        cost_fp = col_c1.number_input("Coût Faux Positif (Recrutement inadapté) € :", 500, 50000, 5000, step=500)
+        cost_fn = col_c2.number_input("Coût Faux Négatif (Opportunité manquée) € :", 500, 50000, 2000, step=500)
+
+    y_pred = (probas >= threshold).astype(int)
+
+    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+    tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+    total = len(y_true)
+
+    accuracy = (tp + tn) / total
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    total_cost = (fp * cost_fp) + (fn * cost_fn)
+
+    with c_res:
+        st.markdown("#### 📊 Métriques à Seuil τ = " + f"{threshold:.2f}")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Accuracy", f"{accuracy:.1%}")
+        k2.metric("Précision", f"{precision:.1%}")
+        k3.metric("Rappel (TPR)", f"{recall:.1%}")
+        k4.metric("F1-Score", f"{f1:.3f}")
+
+        st.metric("Coût Économique Total des Erreurs", f"{total_cost:,.0f} €".replace(",", " "),
+                  delta=f"FP: {fp} × {cost_fp}€ | FN: {fn} × {cost_fn}€", delta_color="inverse")
+
+    fig, (ax_cm, ax_cost) = plt.subplots(1, 2, figsize=(9.5, 3.2), facecolor=CLR_BG)
+    ax_cm.set_facecolor("#0b1329")
+    ax_cost.set_facecolor("#0b1329")
+
+    cm_matrix = np.array([[tn, fp], [fn, tp]])
+    ax_cm.imshow(cm_matrix, cmap="Purples", interpolation="nearest")
+    ax_cm.set_xticks([0, 1])
+    ax_cm.set_yticks([0, 1])
+    ax_cm.set_xticklabels(["Prédit 0", "Prédit 1"], color="#f8fafc", fontsize=8)
+    ax_cm.set_yticklabels(["Réel 0", "Réel 1"], color="#f8fafc", fontsize=8)
+    ax_cm.set_title("Matrice de Confusion Dynamique", color="#f8fafc", fontsize=9, fontweight="bold")
+
+    for i in range(2):
+        for j in range(2):
+            val = cm_matrix[i, j]
+            pct = val / total * 100
+            label_text = f"{val}\n({pct:.1f}%)"
+            ax_cm.text(j, i, label_text, ha="center", va="center", color="#ffffff", fontweight="bold", fontsize=9)
+    ax_cm.spines[:].set_color(CLR_BORDER)
+
+    grid_thresh = np.linspace(0.05, 0.95, 50)
+    costs_grid = []
+    for th in grid_thresh:
+        yp = (probas >= th).astype(int)
+        c = (np.sum((y_true == 0) & (yp == 1)) * cost_fp) + (np.sum((y_true == 1) & (yp == 0)) * cost_fn)
+        costs_grid.append(c)
+
+    best_idx = int(np.argmin(costs_grid))
+    best_th = grid_thresh[best_idx]
+    best_cost = costs_grid[best_idx]
+
+    ax_cost.plot(grid_thresh, costs_grid, color=CLR_CANDIDATE, lw=2, label="Fonction de Coût Global (€)")
+    ax_cost.axvline(threshold, color=CLR_NOT_EMP, lw=2, linestyle="--", label=f"Seuil actuel ({threshold:.2f})")
+    ax_cost.scatter([best_th], [best_cost], color=CLR_EMPLOYED, s=70, zorder=5, label=f"Seuil Optimal ({best_th:.2f})")
+    ax_cost.set_xlabel("Seuil de décision τ", color="#cbd5e1", fontsize=8)
+    ax_cost.set_ylabel("Coût total (€)", color="#cbd5e1", fontsize=8)
+    ax_cost.set_title("Optimisation Économique du Seuil", color="#f8fafc", fontsize=9, fontweight="bold")
+    ax_cost.tick_params(colors="#94a3b8", labelsize=8)
+    ax_cost.spines[:].set_color(CLR_BORDER)
+    ax_cost.legend(fontsize=7, facecolor=CLR_CARD, labelcolor="#cbd5e1")
+
+    fig.tight_layout(pad=0.4)
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.caption(
+        f"🎯 **Arbitrage Économique** : Selon vos coûts de sélection ({cost_fp}€ par mauvais recrutement contre {cost_fn}€ par candidat raté), "
+        f"le seuil financier optimal est **τ* = {best_th:.2f}**, permettant un coût minimal de **{best_cost:,.0f} €**."
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Point d'Entrée Principal appelé depuis src/app.py
 # ──────────────────────────────────────────────────────────────────────────────
 def render_simulation():
@@ -1377,68 +1657,83 @@ def render_simulation():
 
     st.markdown(
         f'<h2 style="color:#ffffff;display:flex;align-items:center;gap:10px">'
-        f'<span>🧪</span> Laboratoire d\'Analyse & Simulation des Algorithmes de Classification'
+        f'<span>🧪</span> Laboratoire d\'Analyse & de Simulation Multi-Angles'
         f'</h2>',
         unsafe_allow_html=True
     )
-    st.caption("Comparaison analytique des modèles : KNN, Arbre CART, Linear SVC, Naive Bayes, Random Forest et Zero-R.")
+    st.caption("Plateforme d'expérimentation didactique : décomposition d'algorithmes, analyse de sensibilité contrefactuelle et optimisation des seuils.")
 
-    # 1. Audit Déontologique & Gouvernance (Format Professionnel)
-    _render_governance_report()
-
-    # 2. Sélection du Candidat (Personas, Bouton Aléatoire, Manuel)
     meta = _load_meta()
     champion_pipe = _load_champion_pipeline()
-    candidate_df, use_full, true_label = _render_candidate_selection(meta)
 
-    # 3. Simulateur Canvas 2D Interactif (Positionné en HAUT pour Exploration Immédiate)
-    _render_interactive_canvas_sandbox()
-
-    # 4. Ajustement des Modèles
-    with st.spinner("Ajustement des modèles interactifs sur l'échantillon de travail..."):
-        fitted_models, X_tr, y_tr, X_te, y_te = _fit_simulation_models(use_full)
-
-    # 5. Onglets des Algorithmes
-    st.markdown("---")
-    st.markdown("### 🔬 Exploration Analytique Détaillée par Algorithme")
-
-    tabs = st.tabs([
-        "📐 Linear SVC (Champion)",
-        "🎯 KNN (Voisinage)",
-        "🌳 Arbre de Décision",
-        "🧮 Naive Bayes",
-        "🌲 Random Forest",
-        "⚖️ Zero-R (Baseline)"
+    sim_main_tabs = st.tabs([
+        "🔬 1. Décomposition des Algorithmes (Classique)",
+        "⚡ 2. Analyse Contrefactuelle & What-If (XAI)",
+        "🎚️ 3. Seuil Décisionnel & Matrice de Coûts"
     ])
 
-    predictions = {}
+    with sim_main_tabs[0]:
+        # 1. Audit Déontologique & Gouvernance (Format Professionnel)
+        _render_governance_report()
 
-    with tabs[0]:
-        p_svc = _render_svm_view(candidate_df, use_full, champion_pipe, X_tr, y_tr, true_label)
-        predictions["svc"] = ("📐 Linear SVC", p_svc)
+        # 2. Sélection du Candidat (Personas, Bouton Aléatoire, Manuel)
+        candidate_df, use_full, true_label = _render_candidate_selection(meta)
 
-    with tabs[1]:
-        p_knn = _render_knn_view(candidate_df, use_full, X_tr, y_tr, true_label)
-        predictions["knn"] = ("🎯 K-Nearest Neighbors", p_knn)
+        # 3. Simulateur Canvas 2D Interactif (Positionné en HAUT pour Exploration Immédiate)
+        _render_interactive_canvas_sandbox()
 
-    with tabs[2]:
-        p_tree = _render_tree_view(candidate_df, use_full, X_tr, y_tr, true_label)
-        predictions["tree"] = ("🌳 Arbre de Décision", p_tree)
+        # 4. Ajustement des Modèles
+        with st.spinner("Ajustement des modèles interactifs sur l'échantillon de travail..."):
+            fitted_models, X_tr, y_tr, X_te, y_te = _fit_simulation_models(use_full)
 
-    with tabs[3]:
-        p_nb = _render_nb_view(candidate_df, use_full, X_tr, y_tr, true_label)
-        predictions["nb"] = ("🧮 Naive Bayes", p_nb)
+        # 5. Onglets des Algorithmes
+        st.markdown("---")
+        st.markdown("### 🔬 Exploration Analytique Détaillée par Algorithme")
 
-    with tabs[4]:
-        p_rf = _render_rf_view(candidate_df, use_full, X_tr, y_tr, true_label)
-        predictions["rf"] = ("🌲 Random Forest", p_rf)
+        tabs = st.tabs([
+            "📐 Linear SVC (Champion)",
+            "🎯 KNN (Voisinage)",
+            "🌳 Arbre de Décision",
+            "🧮 Naive Bayes",
+            "🌲 Random Forest",
+            "⚖️ Zero-R (Baseline)"
+        ])
 
-    with tabs[5]:
-        p_zr = _render_zeror_view(y_tr)
-        predictions["zeror"] = ("⚖️ Zero-R (Baseline)", p_zr)
+        predictions = {}
 
-    # 6. Synthèse Comparative & Consensus
-    _render_comparison_table(predictions, true_label)
+        with tabs[0]:
+            p_svc = _render_svm_view(candidate_df, use_full, champion_pipe, X_tr, y_tr, true_label)
+            predictions["svc"] = ("📐 Linear SVC", p_svc)
 
-    # 7. Performances Globales Réelles
-    _render_global_evaluation(use_full)
+        with tabs[1]:
+            p_knn = _render_knn_view(candidate_df, use_full, X_tr, y_tr, true_label)
+            predictions["knn"] = ("🎯 K-Nearest Neighbors", p_knn)
+
+        with tabs[2]:
+            p_tree = _render_tree_view(candidate_df, use_full, X_tr, y_tr, true_label)
+            predictions["tree"] = ("🌳 Arbre de Décision", p_tree)
+
+        with tabs[3]:
+            p_nb = _render_nb_view(candidate_df, use_full, X_tr, y_tr, true_label)
+            predictions["nb"] = ("🧮 Naive Bayes", p_nb)
+
+        with tabs[4]:
+            p_rf = _render_rf_view(candidate_df, use_full, X_tr, y_tr, true_label)
+            predictions["rf"] = ("🌲 Random Forest", p_rf)
+
+        with tabs[5]:
+            p_zr = _render_zeror_view(y_tr)
+            predictions["zeror"] = ("⚖️ Zero-R (Baseline)", p_zr)
+
+        # 6. Synthèse Comparative & Consensus
+        _render_comparison_table(predictions, true_label)
+
+        # 7. Performances Globales Réelles
+        _render_global_evaluation(use_full)
+
+    with sim_main_tabs[1]:
+        _render_whatif_simulator(meta, champion_pipe)
+
+    with sim_main_tabs[2]:
+        _render_threshold_matrix_tuner(champion_pipe)
+
