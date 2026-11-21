@@ -1550,9 +1550,9 @@ def _render_threshold_matrix_tuner(champion_pipe):
     """Simulateur dynamique de seuil décisionnel, matrice de confusion et coût d'erreur."""
     st.markdown("### 🎚️ Simulateur de Seuil Décisionnel & Matrice de Coûts Économiques")
     st.caption(
-        "Dans un modèle de classification, le seuil standard de probabilité est souvent fixé à 0.50 (ou 0 sur la marge). "
-        "Ce simulateur permet d'ajuster dynamiquement ce seuil pour observer le compromis entre Faux Positifs, Faux Négatifs "
-        "et coût financier global."
+        "Pour ce Linear SVC, la valeur affichée est une transformation pédagogique de la marge, non une probabilité calibrée. "
+        "Explorez le compromis entre erreurs uniquement pour comprendre le mécanisme de seuil : ce jeu de données synthétique "
+        "ne permet pas de définir un coût ou une règle de recrutement réelle."
     )
 
     sample_df, _ = _get_working_sample(n=600, seed=42)
@@ -1569,9 +1569,9 @@ def _render_threshold_matrix_tuner(champion_pipe):
 
     with c_ctrl:
         st.markdown("#### ⚙️ Réglage du Seuil & Coûts Métier")
-        threshold = st.slider("Seuil de décision τ (Probabilité estimée) :", 0.05, 0.95, 0.50, step=0.01)
+        threshold = st.slider("Seuil pédagogique τ (score transformé non calibré) :", 0.05, 0.95, 0.50, step=0.01)
 
-        st.markdown("##### 💶 Matrice des Coûts Unitaires d'Erreur")
+        st.markdown("##### 💶 Coûts hypothétiques d'erreur (exercice pédagogique)")
         col_c1, col_c2 = st.columns(2)
         cost_fp = col_c1.number_input("Coût Faux Positif (Recrutement inadapté) € :", 500, 50000, 5000, step=500)
         cost_fn = col_c2.number_input("Coût Faux Négatif (Opportunité manquée) € :", 500, 50000, 2000, step=500)
