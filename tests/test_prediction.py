@@ -177,10 +177,18 @@ def test_many_non_key_technologies(loaded_artifacts, sample_candidate_dict: dict
 
 def test_cli_load_artifacts():
     """Vérifie que cli.load_artifacts charge le modèle champion et les métadonnées."""
-    from cli import load_artifacts
-    model, meta = load_artifacts()
+    import cli
+    model, meta = cli.load_artifacts()
     assert hasattr(model, "predict")
     assert meta["champion"] == "Linear SVC"
+
+
+def test_cli_load_artifacts_missing_raises_error(tmp_path: Path, monkeypatch):
+    """Vérifie que cli.load_artifacts lève FileNotFoundError si les artefacts sont absents."""
+    import cli
+    monkeypatch.setattr(cli, "ROOT", tmp_path)
+    with pytest.raises(FileNotFoundError, match="Artefacts introuvables"):
+        cli.load_artifacts()
 
 
 def test_cli_main_example_flag(capsys, monkeypatch):
@@ -204,6 +212,53 @@ def test_cli_main_single_prediction_json(capsys, monkeypatch):
     captured = capsys.readouterr()
     assert '"prediction": 1' in captured.out
     assert '"deterministic_rule_met": true' in captured.out
+
+
+def test_cli_main_standard_console_output(capsys, monkeypatch):
+    """Vérifie le formatage textuel standard de la console sans le drapeau --json."""
+    from cli import main
+    monkeypatch.setattr(sys, "argv", [
+        "cli.py", "--techs", "Python;Git", "--salary", "55000", "--country", "France"
+    ])
+    main()
+    captured = capsys.readouterr()
+    assert "RÉSULTAT DE L'INFÉRENCE" in captured.out
+    assert "Distance hyperplan SVM" in captured.out
+    assert "Probabilité estimée" in captured.out
+    assert "Diagnostic" in captured.out
+
+
+def test_cli_main_batch_missing_file_exits(capsys, monkeypatch, tmp_path: Path):
+    """Vérifie que le mode batch avec fichier inexistant affiche une erreur et quitte avec code 1."""
+    from cli import main
+    missing_file = tmp_path / "not_found.csv"
+    monkeypatch.setattr(sys, "argv", ["cli.py", "--batch", str(missing_file)])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "introuvable" in captured.out
+
+
+def test_cli_main_batch_default_output(capsys, monkeypatch, sample_batch_df: pd.DataFrame, tmp_path: Path):
+    """Vérifie l'exécution batch complète avec dérivation automatique du chemin de sortie."""
+    from cli import main
+    batch_input = tmp_path / "candidats_batch.csv"
+    sample_batch_df.to_csv(batch_input, index=False)
+
+    monkeypatch.setattr(sys, "argv", ["cli.py", "--batch", str(batch_input)])
+    main()
+
+    expected_output = tmp_path / "candidats_batch_predictions.csv"
+    assert expected_output.exists()
+    df_out = pd.read_csv(expected_output)
+    assert len(df_out) == len(sample_batch_df)
+    assert "Prediction" in df_out.columns
+    assert "Prediction_Label" in df_out.columns
+    captured = capsys.readouterr()
+    assert "Prédictions terminées" in captured.out
+
 
 
 def test_cli_predict_single_structure(loaded_artifacts, sample_candidate_dict: dict):

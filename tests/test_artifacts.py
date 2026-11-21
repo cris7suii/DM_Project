@@ -172,3 +172,27 @@ def test_load_result_csv_rejects_corrupted_file(tmp_path: Path):
     bad_csv.write_bytes(b"\x80\x81\xff\xfe\x00")
     with pytest.raises(ArtifactLoadError, match="illisible"):
         load_result_csv(tmp_path, "corrupted.csv")
+
+
+def test_load_model_and_meta_rejects_corrupted_model_file(tmp_path: Path):
+    """Vérifie qu'un fichier best_model.pkl corrompu lève ArtifactLoadError."""
+    (tmp_path / "best_model.pkl").write_bytes(b"not a valid joblib/pickle file")
+    (tmp_path / "meta.json").write_text(
+        json.dumps({"champion": "Dummy", "technologies": ["Python"], "countries": ["France"]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ArtifactLoadError, match="illisible ou incompatible"):
+        load_model_and_meta(tmp_path)
+
+
+def test_load_model_and_meta_rejects_model_without_predict(tmp_path: Path):
+    """Vérifie qu'un objet sérialisé sans méthode predict lève ArtifactLoadError."""
+    # Sauvegarde d'un dictionnaire à la place d'un modèle scikit-learn
+    joblib.dump({"key": "value"}, tmp_path / "best_model.pkl")
+    (tmp_path / "meta.json").write_text(
+        json.dumps({"champion": "Dummy", "technologies": ["Python"], "countries": ["France"]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ArtifactLoadError, match="ne fournit pas la méthode predict"):
+        load_model_and_meta(tmp_path)
+
