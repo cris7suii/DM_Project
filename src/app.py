@@ -197,6 +197,12 @@ with tabs[1]:
             key_techs_present = rule_summary["key_techs"]
             result_card(pred, score_text, proba, key_techs_found=key_techs_present)
 
+            st.markdown("##### Profil analysé")
+            summary_cols = st.columns(3)
+            summary_cols[0].metric("Expérience", f"{years_code} ans", f"{effective_years_pro} ans pro")
+            summary_cols[1].metric("Technologies déclarées", len(techs) + int(others), f"{rule_summary['count']}/10 clés")
+            summary_cols[2].metric("Règle du jeu de données", "Atteinte" if rule_summary["rule_met"] else "Non atteinte", "seuil : 3 technologies clés")
+
             # Export Certifié du Rapport d'Audit Décisionnel (MLOps / XAI Compliance)
             audit_report = {
                 "system": "EmployML Data Mining Governance Platform",
