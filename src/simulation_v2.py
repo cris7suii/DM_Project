@@ -128,7 +128,7 @@ def _inject_custom_css():
 # Profils types (Personas métiers)
 # ──────────────────────────────────────────────────────────────────────────────
 PERSONAS = {
-    "Senior Full-Stack (5 clés : Python, Node.js, SQL, TypeScript, Bash — Employed=1)": {
+    "Senior Full-Stack (3 clés : Node.js, TypeScript, Bash/Shell — Employed=1)": {
         "Age": "<35", "EdLevel": "Master", "MainBranch": "Dev", "YearsCode": 10, "YearsCodePro": 7,
         "PreviousSalary": 85000, "Country": "France", "Employment": 1, "Gender": "Man",
         "MentalHealth": "No", "Accessibility": "No",
@@ -142,7 +142,7 @@ PERSONAS = {
         "techs": ["JavaScript", "HTML/CSS", "jQuery", "Git"],
         "n_other": 1
     },
-    "Data Analyst / SQL (2 clés : Python, SQL, SQLite — Employed=0)": {
+    "Data Analyst / SQL (1 clé : SQLite — Employed=0)": {
         "Age": "<35", "EdLevel": "Master", "MainBranch": "NotDev", "YearsCode": 4, "YearsCodePro": 2,
         "PreviousSalary": 50000, "Country": "United States of America", "Employment": 1, "Gender": "Man",
         "MentalHealth": "No", "Accessibility": "No",
@@ -485,6 +485,9 @@ def _render_candidate_selection(meta: dict) -> tuple[pd.DataFrame, bool, int | N
     elif mode == "🎲 Tirage aléatoire dans l'échantillon":
         col_btn1, col_btn2 = st.columns([1, 2])
         sample_df, is_real = _get_working_sample(n=700, seed=42)
+
+        if not is_real:
+            st.warning("Les données source ne sont pas disponibles : ce tirage et les modèles interactifs utilisent un échantillon pédagogique synthétique.")
 
         if "random_candidate_idx" not in st.session_state:
             st.session_state["random_candidate_idx"] = 14
