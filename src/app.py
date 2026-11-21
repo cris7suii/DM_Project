@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))          # nécessaire pour désérialiser split_techs / _log1p
 import features  # noqa: E402,F401
 from artifacts import ArtifactLoadError, load_model_and_meta, load_result_csv  # noqa: E402
+from candidate import decision_margin_text, deterministic_rule_summary, validate_candidate  # noqa: E402
 from simulation import build_html  # noqa: E402
 from simulation_v2 import render_simulation  # noqa: E402
 from theme import (  # noqa: E402
@@ -155,7 +156,13 @@ with tabs[1]:
 
     with res_col:
         if submit:
-            effective_years_pro = min(years_pro, years_code)
+            validation_errors = validate_candidate(years_code, years_pro, float(salary), techs)
+            if validation_errors:
+                for error in validation_errors:
+                    st.error(error)
+                st.stop()
+
+            effective_years_pro = years_pro
             total_skills = len(techs) + int(others)
             
             row = pd.DataFrame([{
@@ -184,12 +191,10 @@ with tabs[1]:
                 score_text = f"Probabilité estimée : <strong>{proba:.1%}</strong>"
             elif hasattr(model, "decision_function"):
                 dist = float(model.decision_function(row)[0])
-                score_text = f"Distance à l'hyperplan : <strong>{dist:+.2f}</strong> (>0 : classe Employé)"
-                # Approximation de confiance logistique pour la jauge
-                approx_proba = 1.0 / (1.0 + (2.71828 ** (-dist)))
-                proba = approx_proba
+                score_text = decision_margin_text(dist)
 
-            key_techs_present = [t for t in techs if t in KEY_TECHS]
+            rule_summary = deterministic_rule_summary(techs)
+            key_techs_present = rule_summary["key_techs"]
             result_card(pred, score_text, proba, key_techs_found=key_techs_present)
 
             # Export Certifié du Rapport d'Audit Décisionnel (MLOps / XAI Compliance)
@@ -208,7 +213,8 @@ with tabs[1]:
                     "classification": pred,
                     "label": "Employed (1)" if pred == 1 else "Not Employed (0)",
                     "hyperplane_distance": round(float(model.decision_function(row)[0]), 4) if hasattr(model, "decision_function") else None,
-                    "confidence_score": round(proba, 4) if proba is not None else None,
+                    "calibrated_probability": round(proba, 4) if proba is not None else None,
+                    "score_notice": "Linear SVC margin; not a calibrated probability" if proba is None else None,
                     "key_techs_detected": key_techs_present,
                     "key_techs_count": len(key_techs_present),
                     "deterministic_rule_met": len(key_techs_present) >= 3
