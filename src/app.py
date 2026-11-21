@@ -347,6 +347,14 @@ with tabs[4]:
         st.markdown("##### Métriques d'Équité Détaillées par Sous-Groupe")
         st.dataframe(fair.round(3), width="stretch", hide_index=True)
         st.caption("`taux prédit` = taux de sélection positive ; `TPR` = True Positive Rate (Rappel) ; `FPR` = False Positive Rate.")
+        attribute = st.selectbox("Comparer les taux par attribut", sorted(fair["attribut"].dropna().unique()), key="fairness_attribute")
+        subgroup = fair[fair["attribut"] == attribute].copy()
+        subgroup = subgroup.set_index("level_1")
+        st.bar_chart(subgroup[["taux réel", "taux prédit"]], color=["#06B6D4", "#8B5CF6"])
+        st.caption(
+            f"Effectifs disponibles : {int(subgroup['n'].sum()):,}. Les écarts de taux décrivent l'étiquette et sa reproduction ; "
+            "ils ne démontrent pas qu'un système de recrutement serait équitable."
+        )
 
 # ------------------------------------------------------------------ 🧪 Simulation
 with tabs[5]:
