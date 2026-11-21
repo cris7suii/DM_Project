@@ -203,7 +203,7 @@ with tabs[1]:
             summary_cols[1].metric("Technologies déclarées", len(techs) + int(others), f"{rule_summary['count']}/10 clés")
             summary_cols[2].metric("Règle du jeu de données", "Atteinte" if rule_summary["rule_met"] else "Non atteinte", "seuil : 3 technologies clés")
 
-            # Export Certifié du Rapport d'Audit Décisionnel (MLOps / XAI Compliance)
+            # Export pédagogique du diagnostic reproduit par le modèle.
             audit_report = {
                 "system": "EmployML Data Mining Governance Platform",
                 "model_champion": meta.get("champion", "Linear SVC"),
@@ -225,11 +225,11 @@ with tabs[1]:
                     "key_techs_count": len(key_techs_present),
                     "deterministic_rule_met": len(key_techs_present) >= 3
                 },
-                "compliance_notice": "Conforme aux recommandations d'audit éthique de l'IA (Module Data Mining 2026). Ne pas utiliser en production RH."
+                "usage_notice": "Sortie académique : la cible est déterministe à partir de technologies déclarées. Ne pas utiliser pour une décision RH."
             }
 
             st.download_button(
-                label="📥 Exporter la Fiche d'Audit Certifiée du Candidat (JSON)",
+                label="📥 Exporter le diagnostic pédagogique du candidat (JSON)",
                 data=json.dumps(audit_report, indent=2, ensure_ascii=False),
                 file_name=f"audit_candidat_{country.lower()}_{pred}.json",
                 mime="application/json"
