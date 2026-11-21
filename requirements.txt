@@ -7,3 +7,4 @@ matplotlib>=3.8
 seaborn>=0.13
 streamlit>=1.50
 jupyter
+pytest>=8.0
