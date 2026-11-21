@@ -1,7 +1,31 @@
+# Environments
 venv/
 .venv/
+env/
+ENV/
+
+# Python & Cache
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Jupyter & IDEs
 .ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*.swo
+.qodo/
+
+# OS Specific
 .DS_Store
-# Données brutes (Kaggle) : à télécharger séparément dans data/raw/
+Thumbs.db
+desktop.ini
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Heavy Raw Datasets (Kaggle)
 data/raw/*.csv
