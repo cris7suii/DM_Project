@@ -81,6 +81,48 @@ def test_profile_only_ablation():
         assert pred in (0, 1), f"Modèle {name} a retourné une classe invalide: {pred}"
 
 
+def test_whatif_counterfactual_flip():
+    """Vérifie que l'ajout d'une technologie clé fait basculer la décision du champion (Flip 0 -> 1)."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    # Candidat avec 2 technologies clés (Bash/Shell et Node.js) -> doit prédire 0
+    cand_2keys = pd.DataFrame([{
+        "Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 5, "YearsCodePro": 3, "Country": "France", "PreviousSalary": 50000.0,
+        "HaveWorkedWith": "Python;Bash/Shell;Node.js;Git", "ComputerSkills": 4
+    }])
+    pred_base = int(champ.predict(cand_2keys)[0])
+    assert pred_base == 0, "Un candidat avec 2 clés doit être prédit Non Employé (0)"
+
+    # Ajout d'une 3ème technologie clé (TypeScript) -> doit faire basculer la décision à 1
+    cand_3keys = cand_2keys.copy()
+    cand_3keys["HaveWorkedWith"] = "Python;Bash/Shell;Node.js;TypeScript;Git"
+    cand_3keys["ComputerSkills"] = 5
+    pred_flip = int(champ.predict(cand_3keys)[0])
+    assert pred_flip == 1, "Un candidat avec 3 clés doit basculer vers Employé (1)"
+
+
+def test_decision_threshold_matrix_consistency():
+    """Vérifie la cohérence arithmétique de la matrice de confusion à différents seuils."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    df_sample, _ = simulation_v2._get_working_sample(n=100, seed=42)
+    y_true = df_sample["Employed"].values
+    scores = champ.decision_function(df_sample.drop(columns=["Employed"]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+
+    for th in [0.2, 0.5, 0.8]:
+        y_pred = (probas >= th).astype(int)
+        tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+        fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+        tn = int(np.sum((y_true == 0) & (y_pred == 0)))
+        fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+        assert (tp + fp + tn + fn) == 100, "La somme des quadrants doit égaler la taille de l'échantillon"
+
+
 if __name__ == "__main__":
     test_artifacts_exist_and_load()
     print("test_artifacts_exist_and_load: OK")
@@ -90,4 +132,8 @@ if __name__ == "__main__":
     print("test_models_fit_and_predict_full: OK")
     test_profile_only_ablation()
     print("test_profile_only_ablation: OK")
+    test_whatif_counterfactual_flip()
+    print("test_whatif_counterfactual_flip: OK")
+    test_decision_threshold_matrix_consistency()
+    print("test_decision_threshold_matrix_consistency: OK")
     print("Tous les tests unitaires ont réussi avec succès !")
