@@ -127,6 +127,23 @@ L'application intègre un banc d'essai didactique étendu (`src/simulation_v2.py
 * Python 3.11 ou supérieur
 * Git
 
+### Vérifications avant lancement
+
+L'intégration continue du projet s'exécute avec **Python 3.11**. Pour
+reproduire l'environnement évalué, privilégiez cette version lors de la
+création de l'environnement virtuel.
+
+L'interface nécessite les artefacts déjà versionnés dans `models/` :
+`best_model.pkl`, `preprocessor.pkl`, `meta.json` et les fichiers CSV de
+résultats. Si l'un d'eux est absent, relancez les notebooks dans l'ordre
+`01` → `02` → `03` avant de démarrer Streamlit.
+
+Les données source volumineuses ne sont pas versionnées. Certaines activités
+du laboratoire de simulation peuvent donc utiliser un échantillon pédagogique
+de remplacement lorsque `data/processed/` et `data/raw/stackoverflow_full.csv`
+sont indisponibles. Ce remplacement ne constitue ni un nouveau résultat du
+projet ni une évaluation supplémentaire du modèle.
+
 ```bash
 # 1. Cloner le dépôt
 git clone https://github.com/cris7suii/DM_Project.git
