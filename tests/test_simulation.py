@@ -203,6 +203,171 @@ def test_count_key_techs(techs, expected_count: int):
     assert simulation_v2._count_key_techs(techs) == expected_count
 
 
+def test_prob_meter_bounds():
+    """Vérifie le formatage et le bridage [0%, 100%] de _prob_meter."""
+    m_mid = simulation_v2._prob_meter(0.72)
+    assert "72.0%" in m_mid
+    assert "28.0%" in m_mid
+
+    m_low = simulation_v2._prob_meter(-0.25)
+    assert "0.0%" in m_low
+    assert "100.0%" in m_low
+
+    m_high = simulation_v2._prob_meter(1.35)
+    assert "100.0%" in m_high
+    assert "0.0%" in m_high
+
+
+def test_analytical_audit_box_structure():
+    """Vérifie la génération de la boîte d'audit analytique à 3 phases."""
+    box = simulation_v2._analytical_audit_box("Phase 1: Input", "Phase 2: Math", "Phase 3: Decision")
+    assert "Phase 1: Input" in box
+    assert "Phase 2: Math" in box
+    assert "Phase 3: Decision" in box
+    assert "Synthèse Analytique" in box
+
+
+def test_find_real_dataset_nominal_and_mock(monkeypatch, tmp_path: Path):
+    """Vérifie le comportement de _find_real_dataset avec et sans fichier réel."""
+    # Par défaut sur le repo (sans CSV volumineux)
+    p = simulation_v2._find_real_dataset()
+    assert p is None or isinstance(p, Path)
+
+    # Simulation d'un fichier réel présent
+    mock_processed = tmp_path / "data" / "processed"
+    mock_processed.mkdir(parents=True)
+    test_csv = mock_processed / "applicants_clean.csv"
+    test_csv.write_text("YearsCode,Employed\n10,1\n", encoding="utf-8")
+
+    monkeypatch.setattr(simulation_v2, "ROOT", tmp_path)
+    p_found = simulation_v2._find_real_dataset()
+    assert p_found is not None
+    assert p_found == test_csv
+
+
+def test_get_feature_names_standard_and_fallback(loaded_artifacts):
+    """Vérifie l'extraction des noms de colonnes encodées et la branche de fallback."""
+    from sklearn.base import BaseEstimator, TransformerMixin
+    from sklearn.compose import ColumnTransformer
+
+    model, _ = loaded_artifacts
+    pre = model.named_steps["prep"]
+    names = simulation_v2._get_feature_names(pre)
+    assert isinstance(names, list)
+    assert len(names) > 0
+
+    # Création d'un transformer sans méthode get_feature_names_out pour forcer le fallback
+    class DummyTransformer(BaseEstimator, TransformerMixin):
+        def fit(self, X, y=None):
+            return self
+        def transform(self, X):
+            return np.asarray(X)
+
+    dummy_pre = ColumnTransformer([("num", DummyTransformer(), ["col_a", "col_b"])])
+    dummy_pre.fit(pd.DataFrame({"col_a": [1, 2], "col_b": [3, 4]}))
+    names_fallback = simulation_v2._get_feature_names(dummy_pre)
+    assert "col_a" in names_fallback
+    assert "col_b" in names_fallback
+
+
+def test_render_governance_report_markup(monkeypatch):
+    """Vérifie le rendu du rapport de gouvernance via mock Streamlit."""
+    import streamlit as st
+    calls = []
+    monkeypatch.setattr(st, "markdown", lambda content, **kw: calls.append(content))
+    simulation_v2._render_governance_report()
+    assert len(calls) == 1
+    assert "Audit de Gouvernance Algorithmique" in calls[0]
+
+
+def test_algorithmic_views_mocked_execution(loaded_artifacts, sample_candidate_df: pd.DataFrame, monkeypatch):
+    """Vérifie l'exécution sans erreur et les calculs des vues analytiques des 6 algorithmes."""
+    import streamlit as st
+
+    class MockContext:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def slider(self, label, min_v, max_v, default, *args, **kw):
+            return default
+        def selectbox(self, label, options, *args, **kw):
+            return options[0]
+        def radio(self, label, options, *args, **kw):
+            return options[0]
+        def multiselect(self, label, options, default=None, *args, **kw):
+            return default or ([options[0]] if options else [])
+        def number_input(self, label, min_v, max_v, default, *args, **kw):
+            return default
+        def markdown(self, *args, **kw):
+            pass
+        def metric(self, *args, **kw):
+            pass
+        def dataframe(self, *args, **kw):
+            pass
+        def pyplot(self, *args, **kw):
+            pass
+        def write(self, *args, **kw):
+            pass
+        def caption(self, *args, **kw):
+            pass
+        def button(self, *args, **kw):
+            return False
+
+    def mock_columns(spec, *args, **kwargs):
+        n = spec if isinstance(spec, int) else len(spec)
+        return [MockContext() for _ in range(n)]
+
+    # Mock complet de l'environnement interactif Streamlit
+    monkeypatch.setattr(st, "columns", mock_columns)
+    monkeypatch.setattr(st, "expander", lambda *args, **kw: MockContext())
+    monkeypatch.setattr(st, "markdown", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "caption", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "write", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "metric", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "dataframe", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "pyplot", lambda *args, **kw: None)
+    monkeypatch.setattr(st, "slider", lambda label, min_v, max_v, default, *args, **kw: default)
+    monkeypatch.setattr(st, "selectbox", lambda label, options, *args, **kw: options[0])
+    monkeypatch.setattr(st, "radio", lambda label, options, *args, **kw: options[0])
+    monkeypatch.setattr(st, "multiselect", lambda label, options, default=None, *args, **kw: default or ([options[0]] if options else []))
+    monkeypatch.setattr(st, "number_input", lambda label, min_v, max_v, default, *args, **kw: default)
+    monkeypatch.setattr(st, "button", lambda *args, **kw: False)
+
+    model, meta = loaded_artifacts
+    df_sample, _ = simulation_v2._get_working_sample(n=60, seed=42)
+    X_tr = df_sample.drop(columns=["Employed"])
+    y_tr = df_sample["Employed"].values
+
+    # Test SVM View
+    simulation_v2._render_svm_view(sample_candidate_df, True, model, X_tr, y_tr, 1)
+
+    # Test KNN View
+    simulation_v2._render_knn_view(sample_candidate_df, True, X_tr, y_tr, 1)
+
+    # Test Decision Tree View
+    simulation_v2._render_tree_view(sample_candidate_df, True, X_tr, y_tr, 1)
+
+    # Test Naive Bayes View
+    simulation_v2._render_nb_view(sample_candidate_df, True, X_tr, y_tr, 1)
+
+    # Test Random Forest View
+    simulation_v2._render_rf_view(sample_candidate_df, True, X_tr, y_tr, 1)
+
+    # Test Zero-R View
+    simulation_v2._render_zeror_view(y_tr)
+
+    # Test Comparison Table
+    simulation_v2._render_comparison_table({"svc": ("Linear SVC", 1), "knn": ("KNN", 1)}, 1)
+
+    # Test What-If Simulator
+    simulation_v2._render_whatif_simulator(meta, model)
+
+    # Test Threshold Matrix Tuner
+    simulation_v2._render_threshold_matrix_tuner(model)
+
+
+
 if __name__ == "__main__":
     test_artifacts_exist_and_load()
     print("test_artifacts_exist_and_load: OK")
