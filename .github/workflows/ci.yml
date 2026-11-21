@@ -28,8 +28,8 @@ jobs:
 
       - name: Verify Code Syntax
         run: |
-          python -m py_compile src/features.py src/theme.py src/simulation_v2.py src/app.py tests/test_simulation.py
+          python -m py_compile src/artifacts.py src/candidate.py src/features.py src/theme.py src/simulation_v2.py src/app.py tests/test_artifacts.py tests/test_candidate.py tests/test_simulation.py
 
       - name: Run Test Suite
         run: |
-          python tests/test_simulation.py
+          python -m pytest -q
