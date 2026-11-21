@@ -100,15 +100,24 @@ Tous les modèles ont été entraînés sous validation croisée stratifiée à 
 
 ---
 
-## 🧪 Laboratoire Didactique & Simulation 2D
+## 🧪 Laboratoire de Simulation & XAI Multi-Modes
 
-L'application intègre un banc d'essai didactique (`simulation_v2.py` et bac à sable 2D Canvas) permettant d'inspecter visuellement les décisions de chaque famille d'algorithmes :
+L'application intègre un banc d'essai didactique étendu (`src/simulation_v2.py`) articulé autour de **3 modes de simulation complémentaires** :
 
+### Mode 1 : Décomposition Analytique des Algorithmes & Bac à Sable 2D Canvas
 * **Linear SVC** : Visualisation de l'hyperplan optimal $\mathbf{w}^T \mathbf{x} + b = 0$, calcul de la marge géométrique $M = \frac{2}{\|\mathbf{w}\|}$ et inspection des coefficients d'importance.
 * **KNN** : Sphéroïde des $K$ plus proches voisins, vote majoritaire vs vote pondéré ($1/d, 1/d^2$).
-* **Decision Tree** : Partitionnement orthogonal 2D et cheminement décisionnel pas-à-pas (règles IF-THEN).
+* **Decision Tree (CART)** : Partitionnement orthogonal 2D et cheminement décisionnel pas-à-pas (règles IF-THEN).
 * **Naive Bayes** : Décomposition des vraisemblances et probabilités a posteriori.
 * **Random Forest** : Décomposition du vote individuel de chaque arbre par ensachage (Bagging).
+
+### Mode 2 : Analyse Contrefactuelle & Sensibilité What-If (Explainable AI)
+* **Exploration Contrefactuelle (Recourse)** : Perturbez en direct les compétences et l'expérience du candidat pour observer les variations de distance à la frontière de décision ($w^T x + b$).
+* **Détection Automatique du Point de Bascule (Flip 0 ➔ 1)** : Identification du chemin le plus court vers l'embauche (ajout minimal de technologies clés) et preuve de la stabilité de la règle déterministe.
+
+### Mode 3 : Seuil Décisionnel & Matrice de Coûts Économiques (Cost-Sensitive Learning)
+* **Tuning Dynamique du Seuil $\tau$** : Ajustement du seuil de coupure de probabilité $\tau \in [0.05, 0.95]$ avec recalcul instantané de la matrice de confusion $2 \times 2$.
+* **Modélisation Financière des Erreurs** : Paramétrage du coût d'un faux positif ($C_{FP}$) versus coût d'un faux négatif ($C_{FN}$) et calcul automatique du seuil optimal $\tau^*$ minimisant la perte économique globale.
 
 ---
 
