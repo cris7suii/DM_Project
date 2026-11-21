@@ -1,109 +1,155 @@
-# 💼 Classification des candidats selon leur employabilité
+<div align="center">
 
-Projet de **Data Mining / Machine Learning classique** (sans Deep Learning) : prédire si un candidat est en situation d'emploi (`Employed`) à partir de son profil, avec le jeu de données Kaggle [**70k+ Job Applicants Data (Human Resource)**](https://www.kaggle.com/datasets/ayushtankha/70k-job-applicants-data-human-resource) (73 462 candidats, 14 variables).
+# 💼 EmployML — Classification & Analyse d'Employabilité des Candidats
 
-Le pipeline complet (nettoyage → prétraitement → modèles → évaluation) aboutit à une application **Streamlit** de démonstration.
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5+-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.50+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Dataset Kaggle](https://img.shields.io/badge/Kaggle-70k+_Job_Applicants-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)](https://www.kaggle.com/datasets/ayushtankha/70k-job-applicants-data-human-resource)
+[![Tests Passing](https://img.shields.io/badge/Tests-Passing-10B981?style=for-the-badge&logo=checkmarx&logoColor=white)](#-tests-unitaires-automatisés)
+[![License: Academic](https://img.shields.io/badge/License-Academic-6366F1?style=for-the-badge)](LICENSE)
 
-## ⚠️ Résultat principal : la cible est une règle déterministe
+<p align="center">
+  <strong>Projet de Data Mining & Machine Learning Classique (Sans Deep Learning)</strong><br>
+  Audit algorithmique, détection de règles déterministes cachées, analyse d'équité et simulateur didactique Streamlit.
+</p>
 
-La cible `Employed` est **une fonction exacte de la liste de technologies `HaveWorkedWith`** :
+</div>
 
-> `Employed = 1` ⇔ le candidat maîtrise **au moins 3** des 10 technologies suivantes : Microsoft SQL Server, npm, jQuery, TypeScript, MongoDB, SQLite, Bash/Shell, Node.js, C#, Java.
+---
 
-Cette règle est exacte sur les 73 458 lignes (notebook 03, §6). Les modèles qui voient cette liste atteignent donc ≈ 100 %, sans fuite de données : ils retrouvent la règle. **Ce n'est pas une mesure de l'employabilité réelle.** Sans la liste de technologies, tous les modèles restent proches de la baseline (≈ 57 % contre 53,6 %).
+## 📌 Présentation du Projet
 
-## 🗂️ Structure
+Ce projet analyse le jeu de données Kaggle **[70k+ Job Applicants Data (Human Resource)](https://www.kaggle.com/datasets/ayushtankha/70k-job-applicants-data-human-resource)** (73 462 candidats, 14 variables) dans l'objectif de classifier la situation d'emploi (`Employed`) d'un candidat à partir de son profil socioprofessionnel et technique.
+
+Le pipeline complet (**EDA → Nettoyage → Prétraitement scikit-learn hermétique → Modélisation → Évaluation multi-angles → Déploiement**) aboutit à une application web interactive haute fidélité propulsée par **Streamlit**.
+
+---
+
+## 🔍 Découverte Majeure : Règle Déterministe Cachée
+
+Une investigation statistique approfondie (notebook `03_classification_models.ipynb`, §6) démontre que la cible `Employed` est **une fonction logique exacte de la liste de technologies déclarées (`HaveWorkedWith`)** :
+
+$$\text{Employed} = 1 \iff \sum_{i=1}^{10} \mathbb{I}(\text{tech}_i \in \text{HaveWorkedWith}) \ge 3$$
+
+Où les 10 technologies clés sont :
+> **Microsoft SQL Server**, **npm**, **jQuery**, **TypeScript**, **MongoDB**, **SQLite**, **Bash/Shell**, **Node.js**, **C#**, **Java**.
+
+* **Conséquence directe** : Sur les 73 458 lignes valides, cette règle s'applique à **100.00 %**. Les modèles voyant cette variable atteignent donc des scores quasi-parfaits sans surapprentissage : ils ont simplement retrouvé la règle arithmétique sous-jacente.
+* **Pertinence métier** : Cette cible ne reflète pas une employabilité réelle sur le marché du travail.
+* **Expérience miroir (Profil seul)** : Dès que l'on retire la liste de technologies, tous les algorithmes s'effondrent à **≈ 57 % de F1-macro** (proche de la baseline aléatoire biaisée **Zero-R à 53.6 %**), démontrant que diplômes, années d'expérience et pays ne portent presque aucun signal.
+
+---
+
+## 🗂️ Structure du Dépôt
 
 ```
 DM_Project/
-├── data/raw/            # placer stackoverflow_full.csv ici (Kaggle)
-├── data/processed/      # applicants_clean.csv, train.csv, test.csv (générés)
-├── models/              # best_model.pkl, results.csv, ablation.csv, fairness.csv, ... (générés)
+├── data/
+│   ├── raw/                 # stackoverflow_full.csv (Kaggle)
+│   └── processed/           # applicants_clean.csv, train.csv, test.csv
+├── models/                  # best_model.pkl, preprocessor.pkl, meta.json, métriques CSV
 ├── notebooks/
-│   ├── 01_eda_and_cleaning.ipynb
-│   ├── 02_preprocessing_encoding.ipynb
-│   └── 03_classification_models.ipynb
+│   ├── 01_eda_and_cleaning.ipynb          # Nettoyage, imputations, tests Mann-Whitney & Cramér's V
+│   ├── 02_preprocessing_encoding.ipynb   # Split stratifié 80/20, ColumnTransformer
+│   └── 03_classification_models.ipynb    # GridSearchCV 3 plis, ablations, équité, règle
 ├── src/
-│   ├── features.py      # préprocesseur partagé (ColumnTransformer)
-│   ├── simulation.py    # assemble le simulateur HTML pour Streamlit
-│   └── app.py           # application Streamlit
-├── simulation/          # simulateur interactif (HTML/CSS/JS modulaire)
-├── render.yaml          # déploiement Render
-├── .streamlit/config.toml
-└── requirements.txt
+│   ├── app.py               # Application Streamlit moderne (7 onglets thématiques)
+│   ├── features.py          # ColumnTransformer scikit-learn partagé (anti data leakage)
+│   ├── simulation.py        # Assembleur du simulateur HTML/Canvas
+│   ├── simulation_v2.py     # Moteur de simulation didactique Streamlit
+│   └── theme.py             # Design System & CSS (palette Glassmorphism Dark)
+├── simulation/              # Bac à sable 2D autonome interactif (HTML5 Canvas / CSS / JS)
+│   ├── css/style.css
+│   ├── js/                  # Modules SVM, KNN, CART, Bayes
+│   └── index.html
+├── tests/
+│   └── test_simulation.py   # Suite de tests unitaires automatisés
+├── render.yaml              # Configuration de déploiement Cloud Render
+├── requirements.txt         # Dépendances Python versionnées
+└── .gitignore               # Configuration de filtrage stricte
 ```
 
-## 📊 Démarche
+---
 
-1. **EDA et nettoyage** : types, valeurs manquantes (63 `HaveWorkedWith`), doublons (4), outliers (IQR, conservés), cohérence (588 lignes avec `YearsCodePro > YearsCode`, corrigées), corrélations, tests **Mann-Whitney U** et **χ² + V de Cramér**.
-2. **Prétraitement** : split stratifié 80/20 (`random_state=42`) ; numériques (imputation médiane + standardisation, `log1p` sur le salaire) ; catégorielles (imputation + One-Hot, pays rares regroupés) ; `HaveWorkedWith` en **multi-hot** des 40 technologies les plus fréquentes.
-3. **Modèles** : Zero-R, Multinomial Naive Bayes, KNN, Arbre de décision, Random Forest, Linear SVC, réglés par `GridSearchCV` (3 plis stratifiés) sur des `Pipeline` (le préprocesseur est ré-ajusté à chaque pli : pas de fuite). Le champion est choisi sur le **F1-macro en validation croisée**, pas sur le test. Le réglage se fait sur un sous-échantillon de 20 000 lignes (`FAST_MODE`), puis les meilleurs hyperparamètres sont ré-entraînés sur tout le train.
-4. **Ablations, diagnostic de la règle, analyse d'équité** (genre, âge, santé mentale, accessibilité).
+## 📊 Benchmarking & Résultats
 
-### Résultats (jeu de test, toutes variables)
+Tous les modèles ont été entraînés sous validation croisée stratifiée à 3 plis (`GridSearchCV`) en intégrant le `ColumnTransformer` au sein de chaque `Pipeline` pour garantir l'absence totale de fuite de données (*Data Leakage*).
+
+### 1. Scénario Complet (Toutes variables avec technologies)
+
+| Modèle | Accuracy | F1 macro | ROC-AUC | Statut |
+|---|:---:|:---:|:---:|:---:|
+| **Linear SVC** | **1.0000** | **1.0000** | **1.0000** | 🏆 **Champion** |
+| Decision Tree (CART) | 0.9990 | 0.9990 | 0.9994 | Finaliste |
+| Random Forest | 0.9742 | 0.9740 | 0.9977 | Ensembliste |
+| K-Nearest Neighbors | 0.8716 | 0.8715 | 0.9655 | Métrique |
+| Naive Bayes Multinomial | 0.8543 | 0.8529 | 0.9404 | Probabiliste |
+| Zero-R (Baseline majoritaire) | 0.5362 | 0.3490 | *N/A* | Seuil d'utilité |
+
+### 2. Scénario Profil Seul (Sans technologies ni `ComputerSkills`)
 
 | Modèle | Accuracy | F1 macro | ROC-AUC |
-|---|---|---|---|
-| **Linear SVC (champion)** | 1.0000 | 1.0000 | 1.0000 |
-| Decision Tree | 0.9990 | 0.9990 | 0.9994 |
-| Random Forest | 0.9742 | 0.9740 | 0.9977 |
-| K-Nearest Neighbors | 0.8716 | 0.8715 | 0.9655 |
-| Multinomial Naive Bayes | 0.8543 | 0.8529 | 0.9404 |
-| Zero-R (baseline) | 0.5362 | 0.3490 | N/A |
-
-### Résultats sans technologies ni `ComputerSkills` (profil seul)
-
-| Modèle | Accuracy | F1 macro | ROC-AUC |
-|---|---|---|---|
+|---|:---:|:---:|:---:|
 | K-Nearest Neighbors | 0.5660 | 0.5487 | 0.5776 |
 | Random Forest | 0.5813 | 0.5444 | 0.6020 |
-| Multinomial Naive Bayes | 0.5743 | 0.5428 | 0.5916 |
+| Naive Bayes Multinomial | 0.5743 | 0.5428 | 0.5916 |
 | Linear SVC | 0.5744 | 0.5333 | 0.5929 |
 | Decision Tree | 0.5709 | 0.5250 | 0.5678 |
-| Zero-R (baseline) | 0.5362 | 0.3490 | N/A |
+| Zero-R (Baseline) | 0.5362 | 0.3490 | *N/A* |
 
-## 🧪 Simulation interactive didactique
+---
 
-L'onglet **🧪 Simulation** de l'application Streamlit (propulsé par `src/simulation_v2.py`) et le bac à sable 2D autonome (`simulation/index.html`) permettent de décomposer pas-à-pas le fonctionnement de chaque algorithme :
+## 🧪 Laboratoire Didactique & Simulation 2D
 
-| Algorithme | Démonstration interactive & Visualisation | Paramètres réglables |
-|---|---|---|
-| **📐 Linear SVC (Champion)** | Hyperplan $\mathbf{w}^T \mathbf{x} + b = 0$, marge géométrique $M = \frac{2}{\|\mathbf{w}\|}$, jauge de score, top 15 coefficients réels | Régularisation $C$ (Soft Margin) |
-| **🎯 KNN** | Sphéroïde des $K$ plus proches voisins dans l'espace normalisé, vote simple vs vote pondéré ($1/d, 1/d^2$), tableau détaillé des voisins | Voisins $K$, pondération |
-| **🌳 Arbre de décision (CART)** | Partitionnement orthogonal 2D, cheminement pas-à-pas (règles IF-THEN) pour le candidat, importance Gini des variables | Profondeur maximale (`max_depth`) |
-| **🧮 Naive Bayes Multinomial** | Calcul des probabilités a posteriori $P(c\|\mathbf{x})$, probabilités a priori, décomposition des contributions log-vraisemblance | Lissage de Laplace ($\alpha$) |
-| **🌲 Random Forest** | Vote ensembliste détaillé de chaque arbre, réduction de variance par Bagging | Nombre d'arbres, profondeur |
-| **⚖️ Zero-R (Baseline)** | Prédiction de la classe majoritaire (53,6 %), seuil d'utilité minimal pour tout modèle | — |
+L'application intègre un banc d'essai didactique (`simulation_v2.py` et bac à sable 2D Canvas) permettant d'inspecter visuellement les décisions de chaque famille d'algorithmes :
 
-Deux modes d'évaluation sont comparables en direct :
-- **Toutes les variables (avec technologies)** : performances à ≈ 85–100 % (découverte de la règle déterministe).
-- **Profil seul (sans technologies)** : chute à ≈ 54–58 % (niveau de la baseline Zero-R).
+* **Linear SVC** : Visualisation de l'hyperplan optimal $\mathbf{w}^T \mathbf{x} + b = 0$, calcul de la marge géométrique $M = \frac{2}{\|\mathbf{w}\|}$ et inspection des coefficients d'importance.
+* **KNN** : Sphéroïde des $K$ plus proches voisins, vote majoritaire vs vote pondéré ($1/d, 1/d^2$).
+* **Decision Tree** : Partitionnement orthogonal 2D et cheminement décisionnel pas-à-pas (règles IF-THEN).
+* **Naive Bayes** : Décomposition des vraisemblances et probabilités a posteriori.
+* **Random Forest** : Décomposition du vote individuel de chaque arbre par ensachage (Bagging).
 
-### Tests unitaires automatisés
+---
+
+## ⚙️ Installation & Lancement Local
+
+### Prérequis
+* Python 3.11 ou supérieur
+* Git
+
+```bash
+# 1. Cloner le dépôt
+git clone https://github.com/cris7suii/DM_Project.git
+cd DM_Project
+
+# 2. Créer et activer l'environnement virtuel
+python -m venv venv
+# Sous Windows :
+.\venv\Scripts\activate
+# Sous Linux / macOS :
+source venv/bin/activate
+
+# 3. Installer les dépendances
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# 4. Lancer l'application Streamlit
+streamlit run src/app.py
+```
+
+### 🧪 Tests Unitaires Automatisés
+
+Une suite de tests vérifie l'intégrité des modèles sérialisés, la règle déterministe et l'absence de régression :
 
 ```bash
 python tests/test_simulation.py
 ```
 
-## ☁️ Déploiement (Render)
+---
 
-`render.yaml` est fourni : créer un *Web Service* depuis le dépôt GitHub, Render lit la configuration.
+## ⚖️ Responsabilité Éthique & Limites
 
-## ⚙️ Installation et exécution
-
-```bash
-git clone https://github.com/cris7suii/DM_Project.git
-cd DM_Project
-python -m venv venv && source venv/bin/activate     # Windows : venv\Scripts\activate
-pip install -r requirements.txt
-# télécharger le jeu de données sur Kaggle (lien en haut de ce README), placer stackoverflow_full.csv dans data/raw/,
-# puis exécuter les notebooks 01 -> 02 -> 03
-streamlit run src/app.py
-```
-
-## ⚠️ Limites
-
-- La cible est construite à partir des technologies déclarées : elle ne mesure pas l'employabilité réelle.
-- `Employment` n'est pas documenté dans le jeu de données et n'a presque aucun effet.
-- Le jeu contient des attributs sensibles (genre, âge, santé mentale, accessibilité) : ne jamais utiliser un tel modèle pour décider d'un recrutement. L'écart de taux d'emploi entre groupes (ex. femmes 44,9 % vs hommes 54,1 %) est déjà présent dans l'étiquette.
-- Projet académique ; les prédictions sont indicatives.
+1. **Reproduction d'Inégalités Structurelles** : Le jeu de données présente un écart de taux d'emploi historique entre sous-groupes (ex. 44.9 % chez les femmes contre 54.1 % chez les hommes). Le modèle reproduisant fidèlement les corrélations de données, il ne doit en aucun cas être utilisé comme outil décisionnel en recrutement.
+2. **Artefact Synthétique** : L'existence de la règle déterministe sur les technologies clés illustre l'importance critique de l'audit des données (EDA) avant toute mise en production d'un système d'IA.
+3. **Usage Académique** : Projet réalisé dans le cadre d'un module d'étude de Data Mining / Data Science.
