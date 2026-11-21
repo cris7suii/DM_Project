@@ -15,6 +15,7 @@ import streamlit.components.v1 as components
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))          # nécessaire pour désérialiser split_techs / _log1p
 import features  # noqa: E402,F401
+from artifacts import ArtifactLoadError, load_model_and_meta, load_result_csv  # noqa: E402
 from simulation import build_html  # noqa: E402
 from simulation_v2 import render_simulation  # noqa: E402
 from theme import (  # noqa: E402
@@ -38,21 +39,19 @@ inject_theme()
 
 @st.cache_resource
 def load_artifacts():
-    model = joblib.load(ROOT / "models" / "best_model.pkl")
-    meta = json.load(open(ROOT / "models" / "meta.json", encoding="utf-8"))
-    return model, meta
+    return load_model_and_meta(ROOT / "models")
 
 
 @st.cache_data
 def load_csv(name):
-    p = ROOT / "models" / name
-    return pd.read_csv(p) if p.exists() else None
+    return load_result_csv(ROOT / "models", name)
 
 
 try:
     model, meta = load_artifacts()
-except FileNotFoundError:
-    st.error("⚠️ Modèle introuvable : veuillez exécuter les notebooks 01, 02 et 03 (dossier `notebooks/`).")
+except ArtifactLoadError as exc:
+    st.error(f"⚠️ Impossible de charger les artefacts du modèle : {exc}")
+    st.info("Exécutez les notebooks 01 → 02 → 03 dans un environnement compatible, puis relancez l'application.")
     st.stop()
 
 tabs = st.tabs([
