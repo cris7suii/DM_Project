@@ -12,8 +12,9 @@
 3. [Pourquoi le F1-Macro et non l'Accuracy ?](#3-pourquoi-le-f1-macro-et-non-laccuracy-)
 4. [Formulation Mathématique du Champion (Linear SVC)](#4-formulation-mathématique-du-champion-linear-svc)
 5. [Démonstration de la Règle Déterministe Cachée](#5-démonstration-de-la-règle-déterministe-cachée)
-6. [Audit d'Équité & IA Responsable](#6-audit-déquité--ia-responsable)
-7. [Fiches Questions / Réponses pour la Soutenance Orale](#7-fiches-questions--réponses-pour-la-soutenance-orale)
+10. [Audit d'Équité & IA Responsable](#6-audit-déquité--ia-responsable)
+11. [Renforcement du Pipeline d'Encodage et d'Imputation](#8-renforcement-du-pipeline-dencodage-et-dimputation)
+12. [Fiches Questions / Réponses pour la Soutenance Orale](#7-fiches-questions--réponses-pour-la-soutenance-orale)
 
 ---
 
@@ -93,7 +94,32 @@ L'évaluation des disparités algorithmiques révèle des écarts statistiques s
 
 ---
 
-## 7. Fiches Questions / Réponses pour la Soutenance Orale
+## 8. Renforcement du Pipeline d'Encodage et d'Imputation
+
+Pour répondre aux standards rigoureux de la fouille de données académique, le prétraitement initial a été renforcé sur plusieurs axes théoriques et empiriques :
+
+### 8.1. Encodage Ordinal vs One-Hot (Préservation de l'Ordre Monotone)
+* **Problème du One-Hot classique** : Traiter `EdLevel` avec 5 indicatrices booléennes détruit la relation d'ordre naturelle ($\text{PhD} > \text{Master} > \text{Undergraduate} > \text{NoHigherEd}$) et introduit des degrés de liberté superflus.
+* **Solution Renforcée** : Utilisation d'`OrdinalEncoder` avec vecteur de catégories explicite et imputation préalable. Les coefficients des modèles linéaires et les coupures des arbres de décision exploitent directement le rang académique.
+* **Encodage Binaire Compact** : Pour les variables dichotomiques (`Accessibility`, `MentalHealth`, `MainBranch`), l'application de `drop='if_binary'` élimine la corrélation exacte ($r = -1$) entre colonnes redondantes.
+
+### 8.2. Imputation Informative et Mécanismes de Manquants (MNAR)
+* **Hypothèse MCAR vs MNAR** : Dans les données d'enquête, l'absence de réponse (notamment sur le salaire ou la santé mentale) n'est pas purement fortuite (*Missing Completely At Random*), mais informative (*Missing Not At Random*).
+* **MissingIndicator** : En adjoignant des drapeaux booléens explicites via `MissingIndicator`, les algorithmes apprennent le pouvoir prédictif associé à la non-déclaration sans déformer la distribution originale.
+* **Multi-Stratégies** : Support configurable d'imputeurs univariés (Médiane robuste aux valeurs extrêmes) et multivariés (`KNNImputer`, `IterativeImputer` / MICE).
+
+### 8.3. Normalisation Robuste (RobustScaler)
+* **Sensibilité de StandardScaler** : La moyenne $\mu$ et l'écart-type $\sigma$ sont fortement perturbés par les salaires déclarés très élevés (asymétrie positive prononcée).
+* **Formulation de RobustScaler** :
+  $$x' = \frac{x - \text{médiane}(X)}{\text{IQR}(X)} = \frac{x - Q_2}{Q_3 - Q_1}$$
+  Cette standardisation par quantiles neutralise l'influence des points leviers sur l'hyperplan SVM tout en maintenant la forme de la distribution combinée à $\log(1 + x)$.
+
+### 8.4. Immunité Technologique (KeyTechCountVectorizer)
+* **Sécurisation Déterministe** : Les 10 technologies gouvernant la cible `Employed` sont explicitement sanctuarisées dans le vocabulaire multi-hot, empêchant tout écrêtage accidentel par `max_features`.
+
+---
+
+## 9. Fiches Questions / Réponses pour la Soutenance Orale
 
 ### Q1 : « Pourquoi n'avez-vous pas utilisé de Deep Learning (ex. Réseau de neurones, MLP) ? »
 > **Réponse** : Le cahier des charges académique imposait le Machine Learning classique. De plus, sur des données tabulaires hétérogènes de taille moyenne (~70k lignes) régies par une frontière linéaire stricte, un Linear SVC ou un arbre de décision est plus rapide, plus interprétable et mathématiquement optimal par rapport à un réseau de neurones lourd.
@@ -103,3 +129,12 @@ L'évaluation des disparités algorithmiques révèle des écarts statistiques s
 
 ### Q3 : « Quelle est l'utilité du mode What-If / XAI ajouté dans votre application ? »
 > **Réponse** : Il répond aux exigences modernes d'Explainable AI (ex. RGPD / AI Act). Un candidat refusé a le droit de savoir quelle modification minimale de son profil (recourse contrefactuel) lui permettrait de franchir la frontière de décision.
+
+### Q4 : « Pourquoi avoir renforcé l'imputation avec MissingIndicator plutôt qu'une simple médiane ? »
+> **Réponse** : Dans les données déclaratives de type StackOverflow, l'omission d'une réponse (ex. salaire antérieur) constitue en soi un comportement informatif (MNAR - Missing Not At Random). Remplacer simplement par la médiane détruit cette nuance ; adjoindre un drapeau d'absence permet au modèle de dissocier la valeur médiane observée du choix explicite de ne pas déclarer l'attribut.
+
+### Q5 : « Pourquoi privilégier OrdinalEncoder sur EdLevel plutôt qu'un One-Hot ? »
+> **Réponse** : Le niveau d'études est une variable ordinale intrinsèque, non nominale. Le One-Hot crée 5 dimensions orthogonales équidistantes, ignorant que l'écart entre Doctorat et Sans diplôme est qualitativement orienté. L'encodage ordinal préserve la monotonie et réduit la complexité paramétrique du modèle.
+
+### Q6 : « Comment garantissez-vous l'absence de fuite de données (Data Leakage) ? »
+> **Réponse** : L'ensemble de nos transformations (imputation, encodage ordinal, calcul des médianes, vocabulaire textuel) est encapsulé dans un `ColumnTransformer` scikit-learn non ajusté. Lors du `GridSearchCV`, ce transformateur est ré-ajusté de zéro sur chaque ensemble d'entraînement ($K-1$ plis) et simplement projeté sur le pli de validation, interdisant toute contamination rétrospective.

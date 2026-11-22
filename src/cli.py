@@ -85,8 +85,33 @@ def main():
     parser.add_argument("--output", type=str, help="Fichier CSV de sortie pour les résultats par lot")
     parser.add_argument("--json", action="store_true", help="Format de sortie en JSON")
     parser.add_argument("--example", action="store_true", help="Affiche un exemple d'évaluation complet")
+    parser.add_argument("--audit-pipeline", action="store_true", help="Affiche un audit comparatif détaillé du pipeline d'encodage et d'imputation")
 
     args = parser.parse_args()
+
+    if args.audit_pipeline:
+        print("=" * 80)
+        print("🛠️  AUDIT COMPARATIF DU PIPELINE D'ENCODAGE ET D'IMPUTATION (No Data Leakage)")
+        print("=" * 80)
+        sample_df = pd.DataFrame([
+            {"Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+             "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+             "YearsCode": 10, "YearsCodePro": 6, "Country": "France", "PreviousSalary": 75000.0,
+             "HaveWorkedWith": "Python;Git;TypeScript;Node.js;MongoDB", "ComputerSkills": 5},
+            {"Age": ">35", "Accessibility": "Yes", "EdLevel": "PhD", "Employment": 0,
+             "Gender": "Woman", "MentalHealth": "Yes", "MainBranch": "NotDev",
+             "YearsCode": 20, "YearsCodePro": 15, "Country": "Germany", "PreviousSalary": 140000.0,
+             "HaveWorkedWith": "Java;C#;SQLite", "ComputerSkills": 3},
+            {"Age": None, "Accessibility": None, "EdLevel": None, "Employment": None,
+             "Gender": None, "MentalHealth": None, "MainBranch": None,
+             "YearsCode": None, "YearsCodePro": None, "Country": None, "PreviousSalary": None,
+             "HaveWorkedWith": None, "ComputerSkills": None}
+        ])
+        cmp_table = features.compare_preprocessing_strategies(sample_df)
+        print(cmp_table.to_string(index=False))
+        print("=" * 80 + "\n")
+        return
+
     model, meta = load_artifacts()
 
     if args.example:

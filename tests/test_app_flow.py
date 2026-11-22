@@ -48,6 +48,12 @@ class MockStreamlitContainer:
     def button(self, *args, **kw):
         return st.button(*args, **kw)
 
+    def checkbox(self, *args, **kw):
+        return kw.get("value", False)
+
+    def toggle(self, *args, **kw):
+        return kw.get("value", False)
+
     def metric(self, *args, **kw):
         return st.metric(*args, **kw)
 

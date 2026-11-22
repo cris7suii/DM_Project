@@ -62,6 +62,7 @@ tabs = st.tabs([
     "🔎 Analyse d'Ablations",
     "⚖️ Équité & IA Responsable",
     "🧪 Laboratoire de Simulation",
+    "🛠️ Encodage & Imputation",
     "ℹ️ Architecture & À propos"
 ])
 
@@ -360,8 +361,87 @@ with tabs[4]:
 with tabs[5]:
     render_simulation()
 
-# ------------------------------------------------------------------ ℹ️ À propos
+# ------------------------------------------------------------------ 🛠️ Encodage & Imputation
 with tabs[6]:
+    page_header(
+        eyebrow="Architecture Méthodologique & Anti-Fuite",
+        title="Pipeline Renforcé d'Encodage et d'Imputation",
+        description="Comparaison rigoureuse entre le préprocesseur initial et l'architecture optimisée conforme aux exigences académiques."
+    )
+
+    pipeline([
+        ("Nettoyage & Typage", "Suppression des index parasites, typage strict et gestion des listes semi-structurées."),
+        ("Imputation Adaptative", "Médiane / KNN et capture explicite du signal informatif par MissingIndicator (MNAR)."),
+        ("Encodage Hiérarchique", "OrdinalEncoder sur EdLevel/Age, binaire compact (drop='if_binary') et OHE infrequent sur Country."),
+        ("Normalisation Robuste", "Transformation log1p et RobustScaler (médiane & IQR) insensibles aux salaires extrêmes."),
+        ("Multi-Hot Sécurisé", "Vectorisation des technologies avec inclusion garantie des 10 technologies clés déterministes.")
+    ])
+
+    st.write("")
+    sample_for_audit = pd.DataFrame([
+        {"Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+         "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+         "YearsCode": 10, "YearsCodePro": 7, "Country": "France", "PreviousSalary": 75000.0,
+         "HaveWorkedWith": "Python;Node.js;TypeScript;Bash/Shell;SQL;Git", "ComputerSkills": 6},
+        {"Age": ">35", "Accessibility": "Yes", "EdLevel": "PhD", "Employment": 0,
+         "Gender": "Woman", "MentalHealth": "Yes", "MainBranch": "NotDev",
+         "YearsCode": 20, "YearsCodePro": 15, "Country": "Germany", "PreviousSalary": 150000.0,
+         "HaveWorkedWith": "Java;C#;MongoDB;SQLite;npm", "ComputerSkills": 5},
+        {"Age": None, "Accessibility": None, "EdLevel": None, "Employment": None,
+         "Gender": None, "MentalHealth": None, "MainBranch": None,
+         "YearsCode": None, "YearsCodePro": None, "Country": None, "PreviousSalary": None,
+         "HaveWorkedWith": None, "ComputerSkills": None}
+    ])
+
+    col_audit1, col_audit2 = st.columns([3, 2], gap="large")
+    with col_audit1:
+        st.markdown("##### 📊 Matrice Comparative : Baseline vs Pipeline Renforcé")
+        cmp_df = features.compare_preprocessing_strategies(sample_for_audit)
+        st.dataframe(cmp_df, width="stretch", hide_index=True)
+
+    with col_audit2:
+        warning_card(
+            title="Pourquoi Renforcer l'Encodage et l'Imputation ?",
+            text="1. **Préservation de l'Ordre** : 'EdLevel' possède une hiérarchie intrinsèque (PhD > Master > Undergraduate). L'encodage One-Hot classique détruit cette monotonie et gonfle la dimension.\n\n"
+                 "2. **Valeurs Manquantes Informatives (MNAR)** : Dans les enquêtes socioprofessionnelles, ne pas renseigner son salaire ou sa santé mentale porte un signal prédictif capturé par `MissingIndicator`.\n\n"
+                 "3. **Robustesse aux Valeurs Extrêmes** : `RobustScaler` (médiane & IQR) empêche les salaires très élevés de fausser l'hyperplan SVM par rapport à `StandardScaler`."
+        )
+
+    st.write("")
+    st.markdown("##### 🔬 Simulateur Interactif des Stratégies de Prétraitement")
+    st.caption("Ajustez les hyperparamètres de prétraitement pour observer en direct l'impact sur la matrice des caractéristiques générées :")
+
+    c_p1, c_p2, c_p3 = st.columns(3)
+    p_impute = c_p1.selectbox("Stratégie d'Imputation Numérique", ["median", "mean", "knn", "iterative"], index=0)
+    p_ordinal = c_p2.checkbox("Activer Encodage Ordinal (EdLevel, Age)", value=True)
+    p_indicator = c_p3.checkbox("Ajouter Indicateurs MissingIndicator", value=True)
+
+    c_s1, c_s2 = st.columns(2)
+    p_scaler = c_s1.selectbox("Méthode de Mise à l'Échelle", ["robust", "standard", "minmax"], index=0)
+    p_guarantee = c_s2.checkbox("Garantir l'Inclusion des 10 Technologies Clés", value=True)
+
+    test_prep = features.build_reinforced_preprocessor(
+        top_k_techs=40,
+        impute_num_strategy=p_impute,
+        add_missing_indicator=p_indicator,
+        use_ordinal=p_ordinal,
+        scaler_type=p_scaler,
+        guarantee_key_techs=p_guarantee
+    )
+    audit_res = features.inspect_preprocessor(test_prep, sample_for_audit)
+
+    metric_cards([
+        {"icon": "📐", "value": str(audit_res["n_output_features"]), "label": "Variables Générées", "hint": "Taille du vecteur transformé", "tone": "indigo"},
+        {"icon": "⚡", "value": f"{audit_res['sparsity_pct']} %", "label": "Sparsité Matrice", "hint": "Taux d'éléments nuls", "tone": "emerald"},
+        {"icon": "🌿", "value": str(len(audit_res["branch_counts"])), "label": "Branches Actives", "hint": "Sous-pipelines", "tone": "violet"},
+        {"icon": "🔑", "value": "10 / 10", "label": "Technologies Clés", "hint": "Garanties dans vocabulaire", "tone": "amber"}
+    ])
+
+    with st.expander("🔍 Voir les variables générées par ce pipeline configuré"):
+        st.write(audit_res["total_features_list"])
+
+# ------------------------------------------------------------------ ℹ️ À propos
+with tabs[7]:
     page_header(
         eyebrow="Ressources & Gouvernance",
         title="À Propos du Projet EmployML",

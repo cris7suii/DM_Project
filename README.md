@@ -54,8 +54,9 @@ DM_Project/
 │   ├── 02_preprocessing_encoding.ipynb   # Split stratifié 80/20, ColumnTransformer
 │   └── 03_classification_models.ipynb    # GridSearchCV 3 plis, ablations, équité, règle
 ├── src/
-│   ├── app.py               # Application Streamlit moderne (7 onglets thématiques)
-│   ├── features.py          # ColumnTransformer scikit-learn partagé (anti data leakage)
+│   ├── app.py               # Application Streamlit moderne (8 onglets thématiques)
+│   ├── cli.py               # Interface CLI d'évaluation unitaire/lot et audit du pipeline
+│   ├── features.py          # Pipeline renforcé d'encodage et d'imputation (anti data leakage)
 │   ├── simulation.py        # Assembleur du simulateur HTML/Canvas
 │   ├── simulation_v2.py     # Moteur de simulation didactique Streamlit
 │   └── theme.py             # Design System & CSS (palette Glassmorphism Dark)
@@ -64,7 +65,8 @@ DM_Project/
 │   ├── js/                  # Modules SVM, KNN, CART, Bayes
 │   └── index.html
 ├── tests/
-│   └── test_simulation.py   # Suite de tests unitaires automatisés
+│   ├── test_simulation.py   # Suite de tests unitaires de la simulation
+│   └── test_preprocessor.py # Tests unitaires du pipeline renforcé d'encodage/imputation
 ├── render.yaml              # Configuration de déploiement Cloud Render
 ├── requirements.txt         # Dépendances Python versionnées
 └── .gitignore               # Configuration de filtrage stricte
@@ -166,7 +168,9 @@ streamlit run src/app.py
 
 ### 🧪 Tests Unitaires Automatisés
 
-Le projet intègre une suite professionnelle et exhaustive de tests automatisés propulsée par **pytest** et **pytest-cov** pour certifier l'intégrité du pipeline Machine Learning, la conformité des prédictions, la détection des fuites de données et la stabilité de l'application.
+### 🧪 Tests Unitaires Automatisés
+
+Le projet intègre une suite professionnelle et exhaustive de tests automatisés propulsée par **pytest** et **pytest-cov** pour certifier l'intégrité du pipeline Machine Learning, la conformité des prédictions, la détection des fuites de données, la robustesse du pipeline renforcé d'encodage/imputation et la stabilité de l'application.
 
 #### Installation des dépendances de test
 Les dépendances de test (`pytest>=8.0`, `pytest-cov>=5.0`) sont incluses dans `requirements.txt` :
@@ -176,19 +180,26 @@ pip install -r requirements.txt
 
 #### Exécution de la suite de tests
 ```bash
-# Exécution verbeuse de tous les tests
+# Exécution verbeuse de tous les tests avec pytest
 python -m pytest -v
 
 # Exécution avec rapport de couverture de code détaillé
 python -m pytest -v --cov=src --cov-report=term-missing
 
-# Rétrocompatibilité : exécution autonome du script historique
+# Exécution autonome des tests du préprocesseur renforcé
+python tests/test_preprocessor.py
+
+# Exécution autonome des tests de la simulation
 python tests/test_simulation.py
+
+# Audit comparatif du pipeline en ligne de commande (Baseline vs Renforcé)
+python src/cli.py --audit-pipeline
 ```
 
 #### Organisation et couverture des modules de test
-* **`tests/test_artifacts.py`** : Validation de la présence physique, de la désérialisation, de la structure des métadonnées `meta.json` et de l'intégrité des tableaux de résultats CSV (`best_model.pkl`, `preprocessor.pkl`, `results.csv`, `fairness.csv`, etc.).
+* **`tests/test_preprocessor.py`** : Validation unitaire approfondie du **pipeline renforcé d'encodage et d'imputation** (`build_reinforced_preprocessor`), encodage ordinal (`EdLevel`, `Age`), binaire compact (`drop='if_binary'`), capture MNAR (`MissingIndicator`), mise à l'échelle robuste (`RobustScaler`), sanctuarisation des 10 technologies clés (`KEY_TECHS`) et résilience aux NaNs et catégories inconnues.
 * **`tests/test_preprocessing.py`** : Validation unitaire de `features.py` (`split_techs`, `_log1p`, `build_preprocessor`), gestion des valeurs manquantes (`SimpleImputer`), robustesse aux catégories inconnues (`OneHotEncoder`) et vérification de la non-mutation des DataFrames d'entrée.
+* **`tests/test_artifacts.py`** : Validation de la présence physique, de la désérialisation, de la structure des métadonnées `meta.json` et de l'intégrité des tableaux de résultats CSV (`best_model.pkl`, `preprocessor.pkl`, `results.csv`, `fairness.csv`, etc.).
 * **`tests/test_prediction.py`** : Validation des dimensions et types des prédictions, conformité mathématique de la marge Linear SVC, respect strict de la règle déterministe ($\ge 3$ technologies clés), invariance sociodémographique et évaluation des cas limites (0 années d'expérience, salaires extrêmes, profils sans technologies).
 * **`tests/test_candidate.py`** : Validation des contrôles de cohérence sur les profils candidats (`validate_candidate`), extraction des technologies clés et calcul des synthèses de règles.
 * **`tests/test_simulation.py`** : Tests du laboratoire didactique (`simulation_v2.py`), reproductibilité des tirages synthétiques (`seed`), inversion contrefactuelle (What-If Flips $0 \leftrightarrow 1$) et cohérence matricielle des seuils décisionnels.
