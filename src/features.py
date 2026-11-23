@@ -92,6 +92,11 @@ def _clean_tech_series(raw_docs: Any) -> list[str]:
     return [str(d) if (d is not None and not pd.isna(d)) else "" for d in vals]
 
 
+def _fillna_text(s: Any) -> Any:
+    """Remplace les NaN d'une Series de texte par '' (niveau module => picklable par joblib)."""
+    return s.fillna("") if hasattr(s, "fillna") else s
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Vectoriseur Robuste avec Garantie d'Inclusion des Technologies Clés
 # ──────────────────────────────────────────────────────────────────────────────
@@ -259,16 +264,25 @@ def build_preprocessor(top_k_techs: int = 40, nonneg: bool = False,
                 ("ohe", OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=100)),
             ]), cat_cols))
 
-    # 4. Technologies déclarées (HaveWorkedWith)
+        # 4. Technologies déclarées (HaveWorkedWith)
     if top_k_techs and TECH_COL not in drop_cols:
         if guarantee_key_techs:
-            transformers.append(("tech", KeyTechCountVectorizer(
-                top_k_techs=top_k_techs, guarantee_key_techs=True, binary=True), TECH_COL))
+            tech_vec = KeyTechCountVectorizer(
+                top_k_techs=top_k_techs, guarantee_key_techs=True, binary=True)
         else:
-            transformers.append(("tech", CountVectorizer(
+            tech_vec = CountVectorizer(
                 tokenizer=split_techs, token_pattern=None, lowercase=False,
-                binary=True, max_features=top_k_techs), TECH_COL))
+                binary=True, max_features=top_k_techs)
 
+        # CountVectorizer.decode() plante sur NaN AVANT d'appeler split_techs.
+        # On utilise FunctionTransformer (et non SimpleImputer) car il préserve
+        # la pandas.Series que ColumnTransformer passe au pipeline, alors que
+        # SimpleImputer exige un tableau 2D.
+        transformers.append(("tech", Pipeline([
+            ("fill", FunctionTransformer(
+                _fillna_text, validate=False, feature_names_out="one-to-one")),
+            ("vec", tech_vec),
+        ]), TECH_COL))   
     return ColumnTransformer(transformers, sparse_threshold=1.0)
 
 

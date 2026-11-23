@@ -48,6 +48,12 @@ def load_csv(name):
     return load_result_csv(ROOT / "models", name)
 
 
+@st.cache_data
+def load_json(name):
+    path = ROOT / "models" / name
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
 try:
     model, meta = load_artifacts()
 except ArtifactLoadError as exc:
@@ -59,6 +65,7 @@ tabs = st.tabs([
     "🏠 Accueil",
     "🔮 Inférence & Prédiction",
     "📊 Benchmarking & Performance",
+    "🎛️ Tuning & Optimisation",
     "🔎 Analyse d'Ablations",
     "⚖️ Équité & IA Responsable",
     "🧪 Laboratoire de Simulation",
@@ -251,7 +258,7 @@ with tabs[2]:
     page_header(
         eyebrow="Benchmarking des Algorithmes",
         title="Comparaison Multi-Modèles sur le Jeu de Test",
-        description="Résultats comparés des 6 architectures de classification évaluées sur des données jamais vues lors de l'entraînement."
+        description="Résultats comparés des architectures de classification (dont AdaBoost et XGBoost) évaluées sur des données jamais vues lors de l'entraînement."
     )
     
     res = load_csv("results.csv")
@@ -302,8 +309,45 @@ with tabs[2]:
             st.dataframe(prof.round(4), width="stretch", hide_index=True)
             st.caption("Sans les technologies, tous les algorithmes s'effondrent à ≈ 57 % (niveau du hasard biaisé de la baseline Zero-R à 53.6 %).")
 
-# ------------------------------------------------------------------ 🔎 Ablations
+# ------------------------------------------------------------------ 🎛️ Tuning
 with tabs[3]:
+    page_header(
+        eyebrow="Optimisation des Hyperparamètres",
+        title="Tuning des Modèles (AdaBoost, XGBoost…)",
+        description="Recherche en grille (GridSearchCV, 3 plis stratifiés, score F1-macro) menée dans le notebook 03."
+    )
+    tun = load_csv("tuning_results.csv")
+    best_p = load_json("best_params.json") or {}
+    if tun is None:
+        st.info("Fichier `models/tuning_results.csv` introuvable : exécutez la dernière version du notebook 03 "
+                "(AdaBoost, XGBoost…) pour le générer.")
+    else:
+        names = sorted(tun["Modèle"].unique(), key=lambda m: (m not in ("AdaBoost", "XGBoost"), m))
+        choice = st.selectbox("Modèle à examiner :", names, index=0)
+        sub = tun[tun["Modèle"] == choice].sort_values("F1-macro CV", ascending=False).reset_index(drop=True)
+        metric_cards([
+            {"icon": "🔢", "value": str(len(sub)), "label": "Combinaisons testées", "hint": "Grille complète", "tone": "indigo"},
+            {"icon": "🏆", "value": f'{sub["F1-macro CV"].max():.4f}', "label": "Meilleur F1-macro (CV)", "hint": "Combinaison retenue", "tone": "green"},
+            {"icon": "📉", "value": f'{sub["F1-macro CV"].min():.4f}', "label": "Pire F1-macro (CV)", "hint": "Sensibilité au réglage", "tone": "cyan"},
+        ])
+        st.write("")
+        if choice in best_p:
+            st.success("Meilleurs hyperparamètres : " + ", ".join(
+                f"**{k.replace('clf__', '').replace('estimator__', 'souche_')}** = {v}" for k, v in best_p[choice].items()))
+        t_col, c_col = st.columns([3, 2], gap="large")
+        with t_col:
+            st.dataframe(sub[["Rang", "Paramètres", "F1-macro CV"]].round(4), width="stretch", hide_index=True)
+        with c_col:
+            st.caption("10 meilleures combinaisons")
+            st.bar_chart(sub.head(10).set_index("Paramètres")["F1-macro CV"], color=["#6366F1"])
+        st.markdown("##### Meilleur score de validation croisée par modèle")
+        st.bar_chart(tun.groupby("Modèle")["F1-macro CV"].max().sort_values(), color=["#06B6D4"])
+        st.caption("Le réglage se fait sur un sous-échantillon de 20 000 lignes ; le meilleur jeu d'hyperparamètres est "
+                   "ensuite ré-entraîné sur tout le train. Les onglets 🧪 Simulation → AdaBoost / XGBoost permettent de "
+                   "rejouer un mini-réglage en direct.")
+
+# ------------------------------------------------------------------ 🔎 Ablations
+with tabs[4]:
     page_header(
         eyebrow="Analyse d'Importance & Robustesse",
         title="Étude d'Ablations : D'où Vient la Performance ?",
@@ -329,7 +373,7 @@ with tabs[3]:
         )
 
 # ------------------------------------------------------------------ ⚖️ Équité
-with tabs[4]:
+with tabs[5]:
     page_header(
         eyebrow="Éthique & Audit Algorithmique",
         title="Audit d'Équité par Attribut Sensible",
@@ -358,11 +402,11 @@ with tabs[4]:
         )
 
 # ------------------------------------------------------------------ 🧪 Simulation
-with tabs[5]:
+with tabs[6]:
     render_simulation()
 
 # ------------------------------------------------------------------ 🛠️ Encodage & Imputation
-with tabs[6]:
+with tabs[7]:
     page_header(
         eyebrow="Architecture Méthodologique & Anti-Fuite",
         title="Pipeline Renforcé d'Encodage et d'Imputation",
@@ -441,7 +485,7 @@ with tabs[6]:
         st.write(audit_res["total_features_list"])
 
 # ------------------------------------------------------------------ ℹ️ À propos
-with tabs[7]:
+with tabs[8]:
     page_header(
         eyebrow="Ressources & Gouvernance",
         title="À Propos du Projet EmployML",

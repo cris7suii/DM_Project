@@ -12,6 +12,8 @@ Design original : "Modern Analytics Studio / Dark Slate"
 - Linear SVC : choix de la fonction de perte (Squared Hinge vs Hinge standard), régularisation C et pondération de classe.
 - Naive Bayes : choix de la variante (MultinomialNB, BernoulliNB, ComplementNB), lissage alpha et prior.
 - Random Forest : critère (Gini / Entropie), max_features (sqrt, log2, all), B arbres.
+- AdaBoost : tours T, taux d'apprentissage, profondeur des souches, courbe train/test, mini-réglage GridSearchCV.
+- XGBoost : arbres, eta, profondeur, subsample, lambda, évolution arbre par arbre, mini-réglage GridSearchCV.
 - Style CSS haute visibilité : polices système robustes et contrastes garantis en mode sombre et clair.
 """
 from __future__ import annotations
@@ -33,6 +35,19 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+def _sanitize_tech_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Remplace les NaN des colonnes tech par des valeurs neutres.
+
+    Nécessaire car CountVectorizer plante (ValueError) avant d'atteindre
+    split_techs si un document est NaN, y compris dans l'ancien pipeline
+    sérialisé best_model.pkl qui ne contient pas de FunctionTransformer.
+    """
+    df = df.copy()
+    if TECH_COL in df.columns:
+        df[TECH_COL] = df[TECH_COL].fillna("")
+    if "ComputerSkills" in df.columns:
+        df["ComputerSkills"] = df["ComputerSkills"].fillna(0)
+    return df
 # Configuration globale Matplotlib pour haute lisibilité
 plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Segoe UI", "Arial", "sans-serif"]
 plt.rcParams["axes.edgecolor"] = "#334155"
@@ -225,12 +240,12 @@ def _get_working_sample(n: int = 700, seed: int = 42) -> tuple[pd.DataFrame, boo
             df = pd.read_csv(real_path)
             if TARGET in df.columns:
                 df = df.dropna(subset=[TARGET])
+                df = _sanitize_tech_columns(df)          # ← AJOUT
                 if len(df) > n:
                     df = df.sample(n, random_state=seed)
                 return df, True
         except Exception:
             pass
-
     rng = np.random.default_rng(seed)
     meta = _load_meta()
     techs = meta.get("technologies", [
@@ -286,7 +301,7 @@ def _get_working_sample(n: int = 700, seed: int = 42) -> tuple[pd.DataFrame, boo
 def _fit_simulation_models(use_full: bool):
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.tree import DecisionTreeClassifier
-    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
     from sklearn.naive_bayes import MultinomialNB
     from sklearn.svm import LinearSVC
     from sklearn.pipeline import Pipeline
@@ -310,7 +325,16 @@ def _fit_simulation_models(use_full: bool):
         "rf": Pipeline([("prep", pre_std), ("clf", RandomForestClassifier(n_estimators=30, max_depth=5, random_state=42, n_jobs=-1))]),
         "nb": Pipeline([("prep", pre_minmax), ("clf", MultinomialNB(alpha=1.0))]),
         "svc": Pipeline([("prep", pre_std), ("clf", LinearSVC(C=0.1, random_state=42, max_iter=3000))]),
+        "ada": Pipeline([("prep", pre_std), ("clf", AdaBoostClassifier(
+            estimator=DecisionTreeClassifier(max_depth=1, random_state=42), n_estimators=50, random_state=42))]),
     }
+    try:
+        from xgboost import XGBClassifier
+        models["xgb"] = Pipeline([("prep", pre_std), ("clf", XGBClassifier(
+            n_estimators=100, learning_rate=0.1, max_depth=3, tree_method="hist",
+            eval_metric="logloss", random_state=42, n_jobs=1))])
+    except ImportError:
+        pass  # xgboost non installé : l'onglet XGBoost est alors désactivé
 
     fitted = {}
     for k, m in models.items():
@@ -1271,11 +1295,315 @@ Il constitue le **seuil minimal de performance** : tout modèle dont le F1-score
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Réglage interactif (mini GridSearchCV) — partagé par AdaBoost et XGBoost
+# ──────────────────────────────────────────────────────────────────────────────
+def _run_mini_search(pre, clf, grid: dict, X_tr: pd.DataFrame, y_tr: np.ndarray):
+    from sklearn.model_selection import GridSearchCV, StratifiedKFold
+    from sklearn.pipeline import Pipeline
+    pipe = Pipeline([("prep", pre), ("clf", clf)])
+    gs = GridSearchCV(pipe, grid, cv=StratifiedKFold(n_splits=3, shuffle=True, random_state=42),
+                      scoring="f1_macro", n_jobs=1, refit=False)
+    gs.fit(X_tr, y_tr)
+    res = pd.DataFrame(gs.cv_results_["params"])
+    res.columns = [c.replace("clf__", "").replace("estimator__", "souche_") for c in res.columns]
+    res["F1-macro CV"] = np.round(gs.cv_results_["mean_test_score"], 4)
+    res = res.sort_values("F1-macro CV", ascending=False).reset_index(drop=True)
+    best = {k.replace("clf__", "").replace("estimator__", "souche_"): v for k, v in gs.best_params_.items()}
+    return best, res
+
+
+def _render_mini_tuning(key: str, title: str, pre, clf, grid: dict, X_tr, y_tr):
+    with st.expander(f"🎛️ Réglage des hyperparamètres de {title} (GridSearchCV, 3 plis, F1-macro)"):
+        n_comb = int(np.prod([len(v) for v in grid.values()]))
+        st.caption(f"Grille : {n_comb} combinaisons × 3 plis, sur l'échantillon de travail. "
+                   "Le réglage complet (20 000 lignes) est dans le notebook 03.")
+        st.json({k.replace("clf__", "").replace("estimator__", "souche_"): v for k, v in grid.items()})
+        if st.button(f"▶ Lancer le réglage de {title}", key=f"btn_tune_{key}"):
+            with st.spinner("Recherche en grille en cours…"):
+                st.session_state[f"tune_{key}"] = _run_mini_search(pre, clf, grid, X_tr, y_tr)
+        if f"tune_{key}" in st.session_state:
+            best, res = st.session_state[f"tune_{key}"]
+            st.success("Meilleure combinaison : " + ", ".join(f"**{k}** = {v}" for k, v in best.items())
+                       + f" — F1-macro CV = {res.iloc[0]['F1-macro CV']:.4f}. Reportez ces valeurs dans les curseurs ci-dessus.")
+            st.dataframe(res.head(10), width="stretch", hide_index=True)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TAB 7 : AdaBoost (Boosting de souches de décision)
+# ──────────────────────────────────────────────────────────────────────────────
+def _render_adaboost_view(row_df: pd.DataFrame, use_full: bool, X_tr: pd.DataFrame, y_tr: np.ndarray,
+                          X_te: pd.DataFrame, y_te: np.ndarray, true_label: int | None):
+    from sklearn.ensemble import AdaBoostClassifier
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.pipeline import Pipeline
+    from sklearn.metrics import accuracy_score
+
+    st.markdown("#### ⚡ AdaBoost — Boosting de Souches de Décision")
+
+    col_a1, col_a2 = st.columns([1, 1])
+    with col_a1:
+        st.markdown(
+            r"""
+**Mécanisme de renforcement adaptatif :**
+AdaBoost entraîne des **souches** (arbres peu profonds) l'une après l'autre. Après chaque tour $t$,
+les candidats mal classés reçoivent un poids plus élevé ; chaque souche $h_t$ obtient un poids de vote :
+$$\alpha_t = \eta\cdot\tfrac{1}{2}\ln\frac{1-\varepsilon_t}{\varepsilon_t}$$
+Décision finale : $H(\mathbf{x}) = \operatorname{signe}\left(\sum_t \alpha_t\, h_t(\mathbf{x})\right)$, où $\eta$ est le taux d'apprentissage.
+"""
+        )
+    with col_a2:
+        c_a, c_b = st.columns(2)
+        with c_a:
+            n_req = st.slider("Nombre de tours T :", 10, 200, 50, step=10, key="ada_n")
+            depth_s = st.slider("Profondeur des souches :", 1, 3, 1, key="ada_d")
+        with c_b:
+            lr_ada = st.slider("Taux d'apprentissage η :", 0.05, 2.0, 1.0, step=0.05, key="ada_lr")
+
+    input_row = row_df.copy()
+    if not use_full:
+        input_row["HaveWorkedWith"] = ""
+        input_row["ComputerSkills"] = 0
+
+    drop_cols = () if use_full else ("HaveWorkedWith", "ComputerSkills")
+    pre = build_preprocessor(top_k_techs=40 if use_full else 0, nonneg=False, drop_cols=drop_cols)
+    ada_pipe = Pipeline([("prep", pre), ("clf", AdaBoostClassifier(
+        estimator=DecisionTreeClassifier(max_depth=depth_s, random_state=42),
+        n_estimators=n_req, learning_rate=lr_ada, random_state=42))])
+    ada_pipe.fit(X_tr, y_tr)
+
+    clf_ada = ada_pipe.named_steps["clf"]
+    n_est = len(clf_ada.estimators_)
+    cand_t = pre.transform(input_row)
+    fnames = _get_feature_names(pre)
+
+    alphas = np.asarray(clf_ada.estimator_weights_, dtype=float)[:n_est]
+    errs = np.asarray(clf_ada.estimator_errors_, dtype=float)[:n_est]
+    votes = np.array([1 if int(est.predict(cand_t)[0]) == 1 else -1 for est in clf_ada.estimators_])
+    contrib = alphas * votes
+
+    total_alpha = float(alphas.sum()) or 1.0
+    score_full = float(contrib.sum() / total_alpha)          # normalisé dans [-1, 1]
+    pred_ada = int(ada_pipe.predict(input_row)[0])
+    prob_ada = ada_pipe.predict_proba(input_row)[0]
+    acc_te = float(accuracy_score(y_te, ada_pipe.predict(X_te)))
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Classe Prédite", "Employé (1)" if pred_ada == 1 else "Non employé (0)")
+    with m2:
+        st.metric("Probabilité P(Emp)", f"{prob_ada[1]:.1%}")
+    with m3:
+        st.metric("Exactitude (test)", f"{acc_te:.1%}")
+    with m4:
+        st.metric("Souches retenues", f"{n_est}/{n_req}")
+    st.markdown(_prob_meter(prob_ada[1]), unsafe_allow_html=True)
+
+    if n_est > 1:
+        t_show = st.slider("Nombre de tours affichés dans l'explication :", 1, n_est, min(10, n_est), key="ada_show")
+    else:
+        t_show = 1
+        st.caption("AdaBoost s'est arrêté après 1 tour : une seule souche sépare parfaitement les données.")
+    score_part = float(contrib[:t_show].sum() / (float(alphas[:t_show].sum()) or 1.0))
+
+    st.markdown(f"**Les {t_show} premières souches et leur vote sur ce candidat :**")
+    rows = []
+    for i in range(t_show):
+        tr = clf_ada.estimators_[i].tree_
+        f_idx, thr = int(tr.feature[0]), float(tr.threshold[0])
+        f_name = fnames[f_idx] if 0 <= f_idx < len(fnames) else f"Descripteur #{f_idx}"
+        f_name = f_name.replace("tech__", "tech:").replace("cat__", "").replace("num__", "")
+        rows.append({
+            "Tour": i + 1,
+            "Souche (règle à la racine)": f"{f_name} ≤ {thr:.2f}",
+            "Erreur εₜ": f"{errs[i]:.4f}",
+            "Poids αₜ": f"{alphas[i]:.4f}",
+            "Vote sur ce candidat": "Employé (+)" if votes[i] == 1 else "Non employé (−)",
+            "Contribution αₜ·hₜ(x)": f"{contrib[i]:+.4f}",
+        })
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+    fig_ab, (ax_b, ax_c) = plt.subplots(2, 1, figsize=(6, 4.0), facecolor=CLR_BG, sharex=True)
+    xs = np.arange(1, t_show + 1)
+    for ax in (ax_b, ax_c):
+        ax.set_facecolor("#0b1329")
+        ax.tick_params(colors="#94a3b8", labelsize=8)
+        ax.spines[:].set_color(CLR_BORDER)
+    ax_b.bar(xs, contrib[:t_show], color=[CLR_EMPLOYED if c > 0 else CLR_NOT_EMP for c in contrib[:t_show]], alpha=0.9)
+    ax_b.axhline(0, color="white", lw=0.6, alpha=0.5)
+    ax_b.set_ylabel("αₜ·hₜ(x)", color="#cbd5e1", fontsize=8)
+    cum = np.cumsum(contrib[:t_show]) / np.cumsum(alphas[:t_show])
+    ax_c.plot(xs, cum, color=CLR_CANDIDATE, lw=2, marker="o", ms=3)
+    ax_c.axhline(0, color="white", lw=1, linestyle="--", alpha=0.7)
+    ax_c.set_ylim(-1.05, 1.05)
+    ax_c.set_ylabel("Score cumulé", color="#cbd5e1", fontsize=8)
+    ax_c.set_xlabel("Tour de boosting t", color="#cbd5e1", fontsize=8)
+    fig_ab.tight_layout(pad=0.4)
+    st.pyplot(fig_ab)
+    plt.close(fig_ab)
+
+    # Courbe d'apprentissage : exactitude train / test selon le nombre de tours
+    X_tr_t, X_te_t = pre.transform(X_tr), pre.transform(X_te)
+    acc_train_curve = [accuracy_score(y_tr, p) for p in clf_ada.staged_predict(X_tr_t)]
+    acc_test_curve = [accuracy_score(y_te, p) for p in clf_ada.staged_predict(X_te_t)]
+    st.markdown("**Courbe d'apprentissage : exactitude selon le nombre de tours (aide au réglage de T) :**")
+    fig_lc, ax_l = plt.subplots(figsize=(6, 2.6), facecolor=CLR_BG)
+    ax_l.set_facecolor("#0b1329")
+    ax_l.plot(range(1, len(acc_train_curve) + 1), acc_train_curve, color=CLR_EMPLOYED, lw=2, label="Train")
+    ax_l.plot(range(1, len(acc_test_curve) + 1), acc_test_curve, color=CLR_NOT_EMP, lw=2, label="Test")
+    ax_l.set_xlabel("Nombre de souches", color="#cbd5e1", fontsize=8)
+    ax_l.set_ylabel("Exactitude", color="#cbd5e1", fontsize=8)
+    ax_l.tick_params(colors="#94a3b8", labelsize=8)
+    ax_l.spines[:].set_color(CLR_BORDER)
+    ax_l.legend(fontsize=7, facecolor=CLR_CARD, labelcolor="#cbd5e1")
+    fig_lc.tight_layout(pad=0.3)
+    st.pyplot(fig_lc)
+    plt.close(fig_lc)
+
+    _render_mini_tuning(
+        "ada", "AdaBoost", build_preprocessor(top_k_techs=40 if use_full else 0, nonneg=False, drop_cols=drop_cols),
+        AdaBoostClassifier(estimator=DecisionTreeClassifier(max_depth=1, random_state=42), random_state=42),
+        {"clf__n_estimators": [25, 50, 100], "clf__learning_rate": [0.1, 0.5, 1.0], "clf__estimator__max_depth": [1, 2]},
+        X_tr, y_tr,
+    )
+
+    p1 = f"Vecteur transformé en {len(fnames)} dimensions ; {n_est} souches (profondeur {depth_s}) combinées par vote pondéré, η = {lr_ada}."
+    p2 = (f"Somme pondérée Σ αₜ·hₜ(x) normalisée = <b>{score_full:+.3f}</b> "
+          f"(<b>{score_part:+.3f}</b> sur les {t_show} premiers tours). Les souches à faible erreur εₜ pèsent le plus.")
+    p3 = f"Score {'> 0' if score_full > 0 else '<= 0'} ➔ Décision : <b>{'Employé (1)' if pred_ada == 1 else 'Non employé (0)'}</b>."
+    st.markdown(_analytical_audit_box(p1, p2, p3), unsafe_allow_html=True)
+    return pred_ada
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TAB 8 : XGBoost (Gradient Boosting régularisé)
+# ──────────────────────────────────────────────────────────────────────────────
+def _render_xgboost_view(row_df: pd.DataFrame, use_full: bool, X_tr: pd.DataFrame, y_tr: np.ndarray,
+                         X_te: pd.DataFrame, y_te: np.ndarray, true_label: int | None):
+    from xgboost import XGBClassifier
+    from sklearn.pipeline import Pipeline
+    from sklearn.metrics import accuracy_score
+
+    st.markdown("#### 🚀 XGBoost — Gradient Boosting Régularisé")
+
+    col_x1, col_x2 = st.columns([1, 1])
+    with col_x1:
+        st.markdown(
+            r"""
+**Boosting additif par descente de gradient :**
+Chaque arbre $f_t$ corrige les erreurs du modèle précédent : $F_t(\mathbf{x}) = F_{t-1}(\mathbf{x}) + \eta\, f_t(\mathbf{x})$.
+XGBoost minimise une perte régularisée (développement d'ordre 2) :
+$$\mathcal{L} = \sum_i \ell(y_i, \hat{y}_i) + \sum_t \Omega(f_t), \qquad \Omega(f) = \gamma T + \tfrac{1}{2}\lambda \lVert w \rVert^2$$
+La probabilité finale est $P(\text{Employé}\mid\mathbf{x}) = \sigma\big(F_T(\mathbf{x})\big)$.
+"""
+        )
+    with col_x2:
+        c_a, c_b = st.columns(2)
+        with c_a:
+            n_xgb = st.slider("Nombre d'arbres :", 20, 300, 100, step=20, key="xgb_n")
+            depth_x = st.slider("Profondeur max :", 1, 8, 3, key="xgb_d")
+            sub_x = st.slider("Sous-échantillonnage (subsample) :", 0.5, 1.0, 1.0, step=0.1, key="xgb_s")
+        with c_b:
+            lr_x = st.slider("Taux d'apprentissage η :", 0.01, 0.5, 0.1, step=0.01, key="xgb_lr")
+            lam_x = st.slider("Régularisation L2 (λ) :", 0.0, 10.0, 1.0, step=0.5, key="xgb_l")
+
+    input_row = row_df.copy()
+    if not use_full:
+        input_row["HaveWorkedWith"] = ""
+        input_row["ComputerSkills"] = 0
+
+    drop_cols = () if use_full else ("HaveWorkedWith", "ComputerSkills")
+    pre = build_preprocessor(top_k_techs=40 if use_full else 0, nonneg=False, drop_cols=drop_cols)
+    pipe_x = Pipeline([("prep", pre), ("clf", XGBClassifier(
+        n_estimators=n_xgb, learning_rate=lr_x, max_depth=depth_x, subsample=sub_x, reg_lambda=lam_x,
+        tree_method="hist", eval_metric="logloss", random_state=42, n_jobs=1))])
+    pipe_x.fit(X_tr, y_tr)
+
+    clf_x = pipe_x.named_steps["clf"]
+    pred_x = int(pipe_x.predict(input_row)[0])
+    prob_x = pipe_x.predict_proba(input_row)[0]
+    acc_te = float(accuracy_score(y_te, pipe_x.predict(X_te)))
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Classe Prédite", "Employé (1)" if pred_x == 1 else "Non employé (0)")
+    with m2:
+        st.metric("Probabilité P(Emp)", f"{prob_x[1]:.1%}")
+    with m3:
+        st.metric("Exactitude (test)", f"{acc_te:.1%}")
+    with m4:
+        st.metric("Arbres", f"{n_xgb}")
+    st.markdown(_prob_meter(prob_x[1]), unsafe_allow_html=True)
+
+    cand_t = pre.transform(input_row)
+    X_tr_t, X_te_t = pre.transform(X_tr), pre.transform(X_te)
+    ks = sorted(set(list(range(1, n_xgb + 1, max(1, n_xgb // 40))) + [n_xgb]))
+
+    # Évolution de la probabilité du candidat et courbe d'apprentissage selon le nombre d'arbres
+    prob_curve = [float(clf_x.predict_proba(cand_t, iteration_range=(0, k))[0, 1]) for k in ks]
+    acc_tr_curve = [accuracy_score(y_tr, clf_x.predict(X_tr_t, iteration_range=(0, k))) for k in ks]
+    acc_te_curve = [accuracy_score(y_te, clf_x.predict(X_te_t, iteration_range=(0, k))) for k in ks]
+
+    st.markdown("**Évolution du boosting arbre après arbre :**")
+    fig_x, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 4.2), facecolor=CLR_BG, sharex=True)
+    for ax in (ax1, ax2):
+        ax.set_facecolor("#0b1329")
+        ax.tick_params(colors="#94a3b8", labelsize=8)
+        ax.spines[:].set_color(CLR_BORDER)
+    ax1.plot(ks, prob_curve, color=CLR_CANDIDATE, lw=2)
+    ax1.axhline(0.5, color="white", lw=1, linestyle="--", alpha=0.7)
+    ax1.set_ylim(-0.02, 1.02)
+    ax1.set_ylabel("P(Employé) du candidat", color="#cbd5e1", fontsize=8)
+    ax2.plot(ks, acc_tr_curve, color=CLR_EMPLOYED, lw=2, label="Train")
+    ax2.plot(ks, acc_te_curve, color=CLR_NOT_EMP, lw=2, label="Test")
+    ax2.set_ylabel("Exactitude", color="#cbd5e1", fontsize=8)
+    ax2.set_xlabel("Nombre d'arbres", color="#cbd5e1", fontsize=8)
+    ax2.legend(fontsize=7, facecolor=CLR_CARD, labelcolor="#cbd5e1")
+    fig_x.tight_layout(pad=0.4)
+    st.pyplot(fig_x)
+    plt.close(fig_x)
+
+    # Importance des variables (gain)
+    st.markdown("**Top 12 des variables les plus utiles (gain moyen) :**")
+    try:
+        fnames = _get_feature_names(pre)
+        imp = np.asarray(clf_x.feature_importances_, dtype=float)
+        n_match = min(len(imp), len(fnames))
+        top = np.argsort(imp[:n_match])[::-1][:12]
+        labels = [fnames[i].replace("tech__", "tech:").replace("cat__", "").replace("num__", "") for i in top]
+        fig_i, ax_i = plt.subplots(figsize=(6, 3.0), facecolor=CLR_BG)
+        ax_i.set_facecolor("#0b1329")
+        ax_i.barh(range(len(top)), imp[top][::-1], color=CLR_CANDIDATE, alpha=0.9)
+        ax_i.set_yticks(range(len(top)))
+        ax_i.set_yticklabels(labels[::-1], color="#cbd5e1", fontsize=8)
+        ax_i.set_xlabel("Importance (gain)", color="#cbd5e1", fontsize=8)
+        ax_i.tick_params(colors="#94a3b8", labelsize=8)
+        ax_i.spines[:].set_color(CLR_BORDER)
+        fig_i.tight_layout(pad=0.3)
+        st.pyplot(fig_i)
+        plt.close(fig_i)
+    except Exception as e:
+        st.caption(f"Importances non visualisables : {e}")
+
+    _render_mini_tuning(
+        "xgb", "XGBoost", build_preprocessor(top_k_techs=40 if use_full else 0, nonneg=False, drop_cols=drop_cols),
+        XGBClassifier(tree_method="hist", eval_metric="logloss", random_state=42, n_jobs=1),
+        {"clf__n_estimators": [50, 100], "clf__learning_rate": [0.05, 0.1, 0.3], "clf__max_depth": [2, 3, 5]},
+        X_tr, y_tr,
+    )
+
+    p1 = f"{n_xgb} arbres de profondeur {depth_x}, η = {lr_x}, subsample = {sub_x}, λ = {lam_x}."
+    p2 = f"Les arbres s'additionnent dans l'espace des log-cotes ; après σ(·), P(Employé | x) = <b>{prob_x[1]:.2%}</b>."
+    p3 = f"Probabilité {'> 50 %' if prob_x[1] > 0.5 else '<= 50 %'} ➔ Décision : <b>{'Employé (1)' if pred_x == 1 else 'Non employé (0)'}</b>."
+    st.markdown(_analytical_audit_box(p1, p2, p3), unsafe_allow_html=True)
+    return pred_x
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Synthèse Comparative & Performance Globale
 # ──────────────────────────────────────────────────────────────────────────────
 def _render_comparison_table(preds_dict: dict, true_label: int | None):
     st.markdown("---")
-    st.markdown("### 📊 Matrice d'Arbitrage Croisé des 6 Classifieurs")
+    st.markdown("### 📊 Matrice d'Arbitrage Croisé des Classifieurs")
 
     rows = []
     for algo_id, (algo_label, pred_val) in preds_dict.items():
@@ -1699,7 +2027,9 @@ def render_simulation():
             "🌳 Arbre de Décision",
             "🧮 Naive Bayes",
             "🌲 Random Forest",
-            "⚖️ Zero-R (Baseline)"
+            "⚖️ Zero-R (Baseline)",
+            "⚡ AdaBoost (Boosting)",
+            "🚀 XGBoost"
         ])
 
         predictions = {}
@@ -1727,6 +2057,17 @@ def render_simulation():
         with tabs[5]:
             p_zr = _render_zeror_view(y_tr)
             predictions["zeror"] = ("⚖️ Zero-R (Baseline)", p_zr)
+
+        with tabs[6]:
+            p_ada = _render_adaboost_view(candidate_df, use_full, X_tr, y_tr, X_te, y_te, true_label)
+            predictions["ada"] = ("⚡ AdaBoost", p_ada)
+
+        with tabs[7]:
+            if "xgb" in fitted_models:
+                p_xgb = _render_xgboost_view(candidate_df, use_full, X_tr, y_tr, X_te, y_te, true_label)
+                predictions["xgb"] = ("🚀 XGBoost", p_xgb)
+            else:
+                st.warning("XGBoost n'est pas installé : ajoutez « xgboost » à requirements.txt puis `pip install xgboost`.")
 
         # 6. Synthèse Comparative & Consensus
         _render_comparison_table(predictions, true_label)

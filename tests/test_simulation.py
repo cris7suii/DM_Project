@@ -52,10 +52,25 @@ def test_deterministic_rule_in_sample():
         assert row["Employed"] == expected, f"Violation de la règle pour n_k={n_k}"
 
 
-def test_models_fit_and_predict_full():
-    """Vérifie l'inférence des 6 algorithmes en scénario complet."""
+def test_models_fit_and_predict_full(monkeypatch):
+    """Vérifie l'inférence des 6 algorithmes en scénario complet.
+
+    Le test suppose la règle déterministe "n_key >= 3 -> Employé", qui n'est
+    vraie que sur les données synthétiques. On force ce mode pour rendre le
+    test indépendant de la présence locale de data/processed/ (gitignored).
+    """
+    monkeypatch.setattr(simulation_v2, "_find_real_dataset", lambda: None)
+    simulation_v2._get_working_sample.clear()
+    simulation_v2._fit_simulation_models.clear()
+
     fitted, X_tr, y_tr, X_te, y_te = simulation_v2._fit_simulation_models(use_full=True)
-    assert set(fitted.keys()) == {"knn", "tree", "rf", "nb", "svc"}
+    assert {"knn", "tree", "rf", "nb", "svc", "ada"} <= set(fitted.keys())
+    # XGBoost est facultatif (import protégé) : on le vérifie seulement s'il est installé.
+    try:
+        import xgboost  # noqa: F401
+        assert "xgb" in fitted
+    except ImportError:
+        pass
 
     # Candidat avec 5 technologies clés -> doit être prédit Employé (1)
     cand_5keys = pd.DataFrame([{

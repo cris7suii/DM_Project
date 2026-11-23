@@ -48,13 +48,13 @@ DM_Project/
 ├── data/
 │   ├── raw/                 # stackoverflow_full.csv (Kaggle)
 │   └── processed/           # applicants_clean.csv, train.csv, test.csv
-├── models/                  # best_model.pkl, preprocessor.pkl, meta.json, métriques CSV
+├── models/                  # best_model.pkl, preprocessor.pkl, meta.json, tuning_results.csv, best_params.json, métriques CSV
 ├── notebooks/
 │   ├── 01_eda_and_cleaning.ipynb          # Nettoyage, imputations, tests Mann-Whitney & Cramér's V
 │   ├── 02_preprocessing_encoding.ipynb   # Split stratifié 80/20, ColumnTransformer
-│   └── 03_classification_models.ipynb    # GridSearchCV 3 plis, ablations, équité, règle
+│   └── 03_classification_models.ipynb    # GridSearchCV 3 plis (dont AdaBoost, XGBoost), ablations, équité, règle
 ├── src/
-│   ├── app.py               # Application Streamlit moderne (8 onglets thématiques)
+│   ├── app.py               # Application Streamlit moderne (9 onglets thématiques, dont Tuning)
 │   ├── cli.py               # Interface CLI d'évaluation unitaire/lot et audit du pipeline
 │   ├── features.py          # Pipeline renforcé d'encodage et d'imputation (anti data leakage)
 │   ├── simulation.py        # Assembleur du simulateur HTML/Canvas
@@ -62,10 +62,11 @@ DM_Project/
 │   └── theme.py             # Design System & CSS (palette Glassmorphism Dark)
 ├── simulation/              # Bac à sable 2D autonome interactif (HTML5 Canvas / CSS / JS)
 │   ├── css/style.css
-│   ├── js/                  # Modules SVM, KNN, CART, Bayes
+│   ├── js/                  # Modules SVM, KNN, CART, Bayes, AdaBoost
 │   └── index.html
 ├── tests/
 │   ├── test_simulation.py   # Suite de tests unitaires de la simulation
+│   ├── test_boosting.py     # Tests des onglets AdaBoost / XGBoost et du mini-réglage GridSearchCV
 │   └── test_preprocessor.py # Tests unitaires du pipeline renforcé d'encodage/imputation
 ├── render.yaml              # Configuration de déploiement Cloud Render
 ├── requirements.txt         # Dépendances Python versionnées
@@ -88,6 +89,8 @@ Tous les modèles ont été entraînés sous validation croisée stratifiée à 
 | K-Nearest Neighbors | 0.8716 | 0.8715 | 0.9655 | Métrique |
 | Naive Bayes Multinomial | 0.8543 | 0.8529 | 0.9404 | Probabiliste |
 | Zero-R (Baseline majoritaire) | 0.5362 | 0.3490 | *N/A* | Seuil d'utilité |
+
+<!-- À compléter après exécution du notebook 03 : lignes AdaBoost, XGBoost, Gradient Boosting et Régression logistique dans les deux tableaux de résultats. -->
 
 ### 2. Scénario Profil Seul (Sans technologies ni `ComputerSkills`)
 
@@ -112,6 +115,9 @@ L'application intègre un banc d'essai didactique étendu (`src/simulation_v2.py
 * **Decision Tree (CART)** : Partitionnement orthogonal 2D et cheminement décisionnel pas-à-pas (règles IF-THEN).
 * **Naive Bayes** : Décomposition des vraisemblances et probabilités a posteriori.
 * **Random Forest** : Décomposition du vote individuel de chaque arbre par ensachage (Bagging).
+* **AdaBoost** : Boosting de souches de décision — règle, erreur $\varepsilon_t$ et poids $\alpha_t$ de chaque tour, vote de chaque souche sur le candidat, courbe d'apprentissage train/test. Réglables : nombre de tours $T$, taux d'apprentissage $\eta$, profondeur des souches.
+* **XGBoost** : Gradient boosting régularisé — évolution de $P(\text{Employé})$ arbre après arbre, courbe train/test, importance des variables (gain). Réglables : nombre d'arbres, $\eta$, profondeur, `subsample`, $\lambda$ (L2).
+* **Réglage en direct** : les onglets AdaBoost et XGBoost embarquent un mini `GridSearchCV` (3 plis, F1-macro) rejouable depuis l'interface ; le réglage complet est dans le notebook 03 et consultable dans l'onglet **🎛️ Tuning**.
 
 ### Mode 2 : Analyse Contrefactuelle & Sensibilité What-If (Explainable AI)
 * **Exploration Contrefactuelle (Recourse)** : Perturbez en direct les compétences et l'expérience du candidat pour observer les variations de distance à la frontière de décision ($w^T x + b$).
