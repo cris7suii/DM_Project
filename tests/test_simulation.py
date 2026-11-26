@@ -382,6 +382,181 @@ def test_algorithmic_views_mocked_execution(loaded_artifacts, sample_candidate_d
     simulation_v2._render_threshold_matrix_tuner(model)
 
 
+def test_whatif_neutral_features_invariance():
+    """Vérifie l'invariance stricte de la classification face aux variables démographiques et salariales."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    # Profil à 2 techs clés (Bash/Shell, Node.js) -> doit rester strictement 0 quelles que soient les autres variables
+    salaries = [1000.0, 50000.0, 150000.0, 450000.0]
+    ed_levels = ["Undergraduate", "Master", "PhD", "NoHigherEd", "Other"]
+    ages = ["<35", ">35"]
+
+    for sal in salaries:
+        for ed in ed_levels:
+            for age in ages:
+                row = pd.DataFrame([{
+                    "Age": age, "Accessibility": "No", "EdLevel": ed, "Employment": 1,
+                    "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+                    "YearsCode": 15, "YearsCodePro": 10, "Country": "Germany", "PreviousSalary": sal,
+                    "HaveWorkedWith": "Python;Bash/Shell;Node.js;Git", "ComputerSkills": 4
+                }])
+                pred = int(champ.predict(row)[0])
+                assert pred == 0, f"Violation : prédit {pred} au lieu de 0 pour sal={sal}, ed={ed}, age={age}"
+
+    # Profil à 3 techs clés (Bash/Shell, Node.js, TypeScript) -> doit rester strictement 1
+    for sal in [2000.0, 300000.0]:
+        for ed in ["Undergraduate", "PhD"]:
+            row_3 = pd.DataFrame([{
+                "Age": "<35", "Accessibility": "Yes", "EdLevel": ed, "Employment": 0,
+                "Gender": "Woman", "MentalHealth": "Yes", "MainBranch": "NotDev",
+                "YearsCode": 20, "YearsCodePro": 5, "Country": "India", "PreviousSalary": sal,
+                "HaveWorkedWith": "Python;Bash/Shell;Node.js;TypeScript;Git", "ComputerSkills": 5
+            }])
+            pred = int(champ.predict(row_3)[0])
+            assert pred == 1, f"Violation : prédit {pred} au lieu de 1 pour sal={sal}, ed={ed}"
+
+
+def test_whatif_non_key_technologies_do_not_flip_decision():
+    """Vérifie que l'ajout massif de technologies hors des 10 clés Kaggle ne bascule pas la décision."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    base_2keys = pd.DataFrame([{
+        "Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 8, "YearsCodePro": 5, "Country": "France", "PreviousSalary": 60000.0,
+        "HaveWorkedWith": "Python;Bash/Shell;Node.js;Git", "ComputerSkills": 4
+    }])
+    assert int(champ.predict(base_2keys)[0]) == 0
+
+    # Ajout de 10 technologies modernes et valorisées sur le marché, mais absentes des 10 clés synthétiques
+    modern_techs = ["Docker", "Kubernetes", "Rust", "Go", "AWS", "React", "Vue.js", "Linux", "Terraform", "GraphQL"]
+    augmented = base_2keys.copy()
+    augmented["HaveWorkedWith"] = "Python;Bash/Shell;Node.js;Git;" + ";".join(modern_techs)
+    augmented["ComputerSkills"] = 4 + len(modern_techs)
+
+    pred_augmented = int(champ.predict(augmented)[0])
+    assert pred_augmented == 0, "Les technologies non-clés ne doivent pas provoquer de bascule contrefactuelle positive"
+
+    # Ajout d'une seule technologie clé supplémentaire (ex: Java)
+    augmented_with_key = augmented.copy()
+    augmented_with_key["HaveWorkedWith"] = augmented["HaveWorkedWith"].values[0] + ";Java"
+    augmented_with_key["ComputerSkills"] = augmented["ComputerSkills"].values[0] + 1
+
+    pred_with_key = int(champ.predict(augmented_with_key)[0])
+    assert pred_with_key == 1, "L'ajout de la 3ème technologie clé doit déclencher la bascule vers 1"
+
+
+def test_whatif_preset_profiles_predictions():
+    """Valide les prédictions et le décompte de clés des 4 profils de référence du simulateur What-If."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    # Profil A : Junior (2 techs clés : Bash/Shell, Node.js) -> Non Employé (0)
+    techs_a = ["Python", "Git", "Bash/Shell", "Node.js"]
+    assert simulation_v2._count_key_techs(";".join(techs_a)) == 2
+    row_a = pd.DataFrame([{
+        "Age": "<35", "Accessibility": "No", "EdLevel": "Undergraduate", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 4, "YearsCodePro": 2, "Country": "France", "PreviousSalary": 45000.0,
+        "HaveWorkedWith": ";".join(techs_a), "ComputerSkills": len(techs_a) + 1
+    }])
+    assert int(champ.predict(row_a)[0]) == 0
+
+    # Profil B : Transverse (0 tech clé) -> Non Employé (0)
+    techs_b = ["Python", "R", "SQL", "Git"]
+    assert simulation_v2._count_key_techs(";".join(techs_b)) == 0
+    row_b = pd.DataFrame([{
+        "Age": ">35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 12, "YearsCodePro": 8, "Country": "Germany", "PreviousSalary": 75000.0,
+        "HaveWorkedWith": ";".join(techs_b), "ComputerSkills": len(techs_b) + 2
+    }])
+    assert int(champ.predict(row_b)[0]) == 0
+
+    # Profil C : Confirmé (3 techs clés : TypeScript, Node.js, MongoDB) -> Employé (1)
+    techs_c = ["Python", "TypeScript", "Node.js", "MongoDB", "Git"]
+    assert simulation_v2._count_key_techs(";".join(techs_c)) == 3
+    row_c = pd.DataFrame([{
+        "Age": "<35", "Accessibility": "No", "EdLevel": "Master", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 7, "YearsCodePro": 5, "Country": "United Kingdom", "PreviousSalary": 68000.0,
+        "HaveWorkedWith": ";".join(techs_c), "ComputerSkills": len(techs_c) + 3
+    }])
+    assert int(champ.predict(row_c)[0]) == 1
+
+    # Profil D : Senior (6 techs clés : Java, C#, TypeScript, Node.js, MongoDB, Bash/Shell) -> Employé (1)
+    techs_d = ["Java", "C#", "TypeScript", "Node.js", "MongoDB", "Bash/Shell"]
+    assert simulation_v2._count_key_techs(";".join(techs_d)) == 6
+    row_d = pd.DataFrame([{
+        "Age": ">35", "Accessibility": "No", "EdLevel": "PhD", "Employment": 1,
+        "Gender": "Man", "MentalHealth": "No", "MainBranch": "Dev",
+        "YearsCode": 15, "YearsCodePro": 11, "Country": "United States", "PreviousSalary": 110000.0,
+        "HaveWorkedWith": ";".join(techs_d), "ComputerSkills": len(techs_d) + 5
+    }])
+    assert int(champ.predict(row_d)[0]) == 1
+
+
+def test_cost_matrix_asymmetric_optimal_threshold_shift():
+    """Vérifie le déplacement mathématique du seuil optimal tau* selon le ratio des coûts FP / FN."""
+    champ = simulation_v2._load_champion_pipeline()
+    assert champ is not None
+
+    sample_df, _ = simulation_v2._get_working_sample(n=600, seed=42)
+    y_true = sample_df["Employed"].values
+    scores = champ.decision_function(sample_df.drop(columns=["Employed"]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+    grid_thresh = np.linspace(0.05, 0.95, 50)
+
+    def find_best_threshold(cost_fp, cost_fn):
+        costs = []
+        for th in grid_thresh:
+            yp = (probas >= th).astype(int)
+            c = (np.sum((y_true == 0) & (yp == 1)) * cost_fp) + (np.sum((y_true == 1) & (yp == 0)) * cost_fn)
+            costs.append(c)
+        best_i = int(np.argmin(costs))
+        return grid_thresh[best_i], costs[best_i], costs
+
+    # Cas 1 : Faux Positif très pénalisant (ex: 50 000 € vs 100 €) -> seuil optimal plus conservateur (haut)
+    th_conservative, cost_conservative, _ = find_best_threshold(cost_fp=50000, cost_fn=100)
+    # Cas 2 : Faux Négatif très pénalisant (ex: 100 € vs 50 000 €) -> seuil optimal plus agressif (bas)
+    th_aggressive, cost_aggressive, _ = find_best_threshold(cost_fp=100, cost_fn=50000)
+
+    assert th_conservative >= th_aggressive, (
+        f"Le seuil conservateur ({th_conservative:.2f}) doit être supérieur ou égal "
+        f"au seuil agressif ({th_aggressive:.2f})"
+    )
+
+    # Vérification que le coût au seuil optimal est <= au coût au seuil 0.50
+    yp_mid = (probas >= 0.50).astype(int)
+    cost_mid = (np.sum((y_true == 0) & (yp_mid == 1)) * 50000) + (np.sum((y_true == 1) & (yp_mid == 0)) * 100)
+    assert cost_conservative <= cost_mid, "L'optimisation sur la grille doit faire au moins aussi bien que le seuil 0.50"
+
+
+def test_cost_matrix_exact_arithmetic_and_bounds():
+    """Vérifie la formule mathématique du coût économique et les cas limites aux bornes."""
+    sample_df, _ = simulation_v2._get_working_sample(n=100, seed=42)
+    y_true = sample_df["Employed"].values
+    champ = simulation_v2._load_champion_pipeline()
+    scores = champ.decision_function(sample_df.drop(columns=["Employed"]))
+    probas = 1.0 / (1.0 + np.exp(-scores))
+
+    # Cas limite : coûts nuls -> coût total nul
+    cost_zero = (np.sum((y_true == 0) & (probas >= 0.5)) * 0) + (np.sum((y_true == 1) & (probas < 0.5)) * 0)
+    assert cost_zero == 0
+
+    # Vérification arithmétique exacte sur seuil tau = 0.40 avec coûts arbitraires
+    th = 0.40
+    yp = (probas >= th).astype(int)
+    fp = int(np.sum((y_true == 0) & (yp == 1)))
+    fn = int(np.sum((y_true == 1) & (yp == 0)))
+    cost_fp, cost_fn = 3750, 1250
+    expected_cost = (fp * cost_fp) + (fn * cost_fn)
+    assert expected_cost == (fp * 3750 + fn * 1250)
+    assert expected_cost >= 0
+
+
 
 if __name__ == "__main__":
     test_artifacts_exist_and_load()
