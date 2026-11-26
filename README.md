@@ -232,3 +232,29 @@ python src/cli.py --audit-pipeline
 1. **Reproduction d'Inégalités Structurelles** : Le jeu de données présente un écart de taux d'emploi historique entre sous-groupes (ex. 44.9 % chez les femmes contre 54.1 % chez les hommes). Le modèle reproduisant fidèlement les corrélations de données, il ne doit en aucun cas être utilisé comme outil décisionnel en recrutement.
 2. **Artefact Synthétique** : L'existence de la règle déterministe sur les technologies clés illustre l'importance critique de l'audit des données (EDA) avant toute mise en production d'un système d'IA.
 3. **Usage Académique** : Projet réalisé dans le cadre d'un module d'étude de Data Mining / Data Science.
+---
+
+## 📁 Contribution documentaire
+
+Dans le cadre du mini-projet **EmployML**, cette contribution regroupe les livrables documentaires associés au projet.
+
+### Documents fournis
+
+- **Rapport du mini-projet :** [`Rapport_MiniProject_RSD23.pdf`](docs/Rapport_MiniProject_RSD23.pdf)
+- **Index des captures :** [`CAPTURES.md`](docs/CAPTURES.md)
+
+### Captures de l'application
+
+Les captures suivantes, extraites du rapport scientifique, illustrent différentes fonctionnalités de l'application EmployML :
+
+| Capture | Description |
+|---|---|
+| `page_14_capture_01.png` | Accueil et interface de l'application |
+| `page_14_capture_02.png` | Inférence et prédiction |
+| `page_15_capture_01.png` | Benchmarking |
+| `page_15_capture_02.png` | Analyse d'ablation |
+| `page_16_capture_01.png` | Équité et IA responsable |
+
+
+
+---
